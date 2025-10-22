@@ -19,28 +19,15 @@ OUT_XLSX_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
 # Настройки логирования
+from datetime import datetime
+log_timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 LOG_CONFIG = {
     'level': 'DEBUG',  # INFO или DEBUG
-    'file': str(LOGS_DIR / 'comparison.log'),
+    'file': str(LOGS_DIR / f'comparison_{log_timestamp}.log'),
     'format': '%(asctime)s - %(levelname)s - %(message)s'
 }
 
-# Сообщения для логирования
-LOG_MESSAGES = {
-    'program_start': 'Запуск программы сравнения периодов',
-    'program_end': 'Программа завершена успешно',
-    'file_loading': 'Загрузка файла: {}',
-    'file_loaded': 'Файл загружен успешно: {}',
-    'data_processing': 'Обработка данных из файла: {}',
-    'calculation_start': 'Начало расчета приростов',
-    'calculation_end': 'Расчет приростов завершен',
-    'output_creation': 'Создание выходного файла: {}',
-    'output_created': 'Выходной файл создан: {}',
-    'error_occurred': 'Произошла ошибка: {}',
-    'config_loaded': 'Конфигурация загружена',
-    'test_data_creation': 'Создание тестовых данных',
-    'test_data_created': 'Тестовые данные созданы'
-}
+# Сообщения для логирования удалены - теперь используются прямые тексты в коде
 
 # Параметры анализа
 ANALYSIS_CONFIG = {

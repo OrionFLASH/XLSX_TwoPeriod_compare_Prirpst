@@ -52,43 +52,50 @@ class PeriodComparison:
             Exception: При ошибке загрузки данных
         """
         try:
-            logger.log_file_loading(file_path)
+            logger.log_file_loading_start(file_path)
+            logger.debug(f"Загружаем лист: {sheet_name}")
             
             # Загрузка данных из Excel файла
             df = pd.read_excel(file_path, sheet_name=sheet_name)
+            logger.debug(f"Исходный файл содержит {len(df)} строк и {len(df.columns)} колонок")
             
             # Переименование колонок согласно конфигурации
             df = df.rename(columns=columns)
-            
-            # Отладочная информация
-            logger.debug(f"Колонки после переименования: {df.columns.tolist()}")
+            logger.log_file_columns_renamed(file_path, list(columns.keys()))
+            logger.debug(f"Колонки переименованы: {columns}")
             
             # Очистка данных от пустых значений (после переименования)
-            # Проверяем наличие необходимых колонок
+            rows_before = len(df)
             required_columns = ['client_id', 'value']
             available_columns = [col for col in required_columns if col in df.columns]
             logger.debug(f"Доступные колонки для очистки: {available_columns}")
             if available_columns:
                 df = df.dropna(subset=available_columns)
+                logger.log_file_data_cleaned(file_path, rows_before, len(df))
+            else:
+                logger.debug("Нет колонок для очистки от пустых значений")
             
             # Преобразование типов данных (после переименования)
             if 'tab_number' in df.columns:
                 # Обработка табельных номеров с апострофами
                 df['tab_number'] = df['tab_number'].astype(str).str.replace("'", "").str.zfill(8)
+                logger.debug(f"Обработаны табельные номера: {df['tab_number'].nunique()} уникальных")
             if 'client_id' in df.columns:
                 # Обработка ID клиентов с апострофами
                 df['client_id'] = df['client_id'].astype(str).str.replace("'", "").str.zfill(20)
+                logger.debug(f"Обработаны ID клиентов: {df['client_id'].nunique()} уникальных")
             if 'value' in df.columns:
                 df['value'] = pd.to_numeric(df['value'], errors='coerce').fillna(0)
+                logger.debug(f"Обработаны значения: среднее = {df['value'].mean():.2f}, сумма = {df['value'].sum():.2f}")
             
             logger.log_file_loaded(file_path)
-            logger.debug(f"Загружено {len(df)} записей из файла {file_path}")
+            logger.log_file_data_processed(file_path, len(df))
             
             return df
             
         except FileNotFoundError:
             error_msg = f"Файл не найден: {file_path}"
-            logger.log_error(error_msg)
+            logger.log_file_load_error(file_path, error_msg)
             raise FileNotFoundError(error_msg)
         except Exception as e:
             error_msg = f"Ошибка загрузки файла {file_path}: {str(e)}"
@@ -202,7 +209,7 @@ class PeriodComparison:
         Returns:
             pd.DataFrame: База клиентов с рассчитанными приростами
         """
-        logger.log_calculation_start()
+        logger.debug("Начинаем расчет приростов")
         
         # Расчет прироста в зависимости от количества периодов
         if self.file_count == 2:
@@ -218,7 +225,7 @@ class PeriodComparison:
         else:
             raise ValueError(f"Неподдерживаемое количество периодов: {self.file_count}")
         
-        logger.log_calculation_end()
+        logger.debug("Расчет приростов завершен")
         logger.debug(f"Приросты рассчитаны для {len(clients_base)} клиентов")
         
         return clients_base
@@ -354,7 +361,8 @@ class PeriodComparison:
         else:
             output_file = f"{base_name}.xlsx"
         
-        logger.log_output_creation(output_file)
+        logger.log_output_creation_start(output_file)
+        logger.debug(f"Создаем выходной файл: {output_file}")
         
         try:
             with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
@@ -596,27 +604,31 @@ class PeriodComparison:
         Выполняет полный цикл обработки данных
         """
         try:
-            logger.info("Начало анализа периодов")
+            logger.log_analysis_start()
             
             # Загрузка всех файлов
             self.load_all_files()
             
             # Создание базы клиентов
             clients_base = self.create_clients_base()
+            logger.log_clients_base_created(len(clients_base))
             
             # Расчет приростов
             clients_base = self.calculate_growth(clients_base)
+            logger.log_growth_calculated(len(clients_base))
             
             # Создание сводки по менеджерам
             managers_summary = self.create_managers_summary(clients_base)
+            logger.log_managers_summary_created(len(managers_summary))
             
             # Создание сводки по менеджерам по дате сделки
             managers_deal_date_summary = self.create_managers_deal_date_summary(clients_base)
+            logger.log_managers_deal_date_created(len(managers_deal_date_summary))
             
             # Создание выходного файла
             self.create_output_file(clients_base, managers_summary, managers_deal_date_summary)
             
-            logger.info("Анализ завершен успешно")
+            logger.log_analysis_complete()
             
         except Exception as e:
             logger.log_error(f"Ошибка в процессе анализа: {str(e)}")
@@ -638,16 +650,23 @@ def check_and_create_test_data():
             IN_XLSX_DIR / 'test_data_period3.xlsx'
         ]
         
+        deleted_files = []
         for file_path in test_files:
             if file_path.exists():
                 file_path.unlink()
+                deleted_files.append(str(file_path))
                 logger.debug(f"Удален старый тестовый файл: {file_path}")
+        
+        if deleted_files:
+            logger.log_test_files_deleted(deleted_files)
         
         # Создание новых тестовых данных
         logger.info("Создание новых тестовых данных...")
         success = create_test_data()
         
         if success:
+            created_files = [str(f) for f in test_files]
+            logger.log_test_files_created(created_files)
             logger.info("Тестовые данные созданы успешно")
             print("Тестовые данные созданы успешно")
         else:
@@ -689,7 +708,7 @@ def main():
         print(f"Анализ завершен успешно. Результаты сохранены в файл {output_file}")
         
     except Exception as e:
-        logger.log_error(f"Критическая ошибка: {str(e)}")
+        logger.log_critical_error(str(e))
         print(f"Произошла ошибка: {str(e)}")
         return 1
     

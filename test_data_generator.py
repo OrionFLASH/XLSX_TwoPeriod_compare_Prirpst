@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import random
 from typing import List, Tuple
-from config import TEST_DATA_CONFIG, IN_XLSX_DIR, LOG_MESSAGES
+from config import TEST_DATA_CONFIG, IN_XLSX_DIR
 from logger import logger
 
 
@@ -169,7 +169,7 @@ class TestDataGenerator:
         Создание тестовых Excel файлов
         Генерирует файлы для всех периодов согласно конфигурации
         """
-        logger.info(LOG_MESSAGES['test_data_creation'])
+        logger.info("Создание тестовых данных")
         
         try:
             # Создание файлов для каждого периода
@@ -186,7 +186,7 @@ class TestDataGenerator:
                 
                 logger.debug(f"Создан тестовый файл: {filename}")
             
-            logger.info(LOG_MESSAGES['test_data_created'])
+            logger.info("Тестовые данные созданы")
             print("Тестовые файлы созданы успешно:")
             print("- test_data_period1.xlsx")
             print("- test_data_period2.xlsx") 
@@ -219,7 +219,7 @@ def create_test_data():
 
 if __name__ == "__main__":
     # Импорт логгера для использования в main
-    from logger import logger, LOG_MESSAGES
+    from logger import logger
     
     # Создание тестовых данных
     success = create_test_data()
