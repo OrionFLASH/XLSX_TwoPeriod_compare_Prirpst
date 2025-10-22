@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import random
 from typing import List, Tuple
-from config import TEST_DATA_CONFIG
+from config import TEST_DATA_CONFIG, IN_XLSX_DIR
 from logger import logger
 
 
@@ -177,8 +177,8 @@ class TestDataGenerator:
                 # Генерация данных
                 df = self.generate_period_data(period)
                 
-                # Создание имени файла
-                filename = f"test_data_period{period}.xlsx"
+                # Создание имени файла в каталоге IN_XLSX
+                filename = IN_XLSX_DIR / f"test_data_period{period}.xlsx"
                 
                 # Сохранение в Excel файл
                 with pd.ExcelWriter(filename, engine='openpyxl') as writer:

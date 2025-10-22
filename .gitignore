@@ -29,12 +29,17 @@ wheels/
 *.log
 logs/
 
+# Каталоги с данными
+IN_XLSX/
+OUT_XLSX/
+LOGS/
+
 # Excel файлы (кроме тестовых)
 *.xlsx
 !test_data_period*.xlsx
 
 # Выходные файлы
-comparison_result.xlsx
+comparison_result*.xlsx
 
 # IDE
 .vscode/

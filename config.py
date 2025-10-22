@@ -4,10 +4,24 @@
 Содержит все настройки и параметры для работы программы
 """
 
+import os
+from pathlib import Path
+
+# Базовые пути (кроссплатформенные)
+BASE_DIR = Path(__file__).parent.absolute()
+IN_XLSX_DIR = BASE_DIR / "IN_XLSX"
+OUT_XLSX_DIR = BASE_DIR / "OUT_XLSX"
+LOGS_DIR = BASE_DIR / "LOGS"
+
+# Создание каталогов если они не существуют
+IN_XLSX_DIR.mkdir(exist_ok=True)
+OUT_XLSX_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(exist_ok=True)
+
 # Настройки логирования
 LOG_CONFIG = {
     'level': 'DEBUG',  # INFO или DEBUG
-    'file': 'comparison.log',
+    'file': str(LOGS_DIR / 'comparison.log'),
     'format': '%(asctime)s - %(levelname)s - %(message)s'
 }
 
@@ -36,7 +50,7 @@ ANALYSIS_CONFIG = {
     # Настройки файлов
     'files': [
         {
-            'path': 'test_data_period1.xlsx',
+            'path': str(IN_XLSX_DIR / 'test_data_period1.xlsx'),
             'sheet_name': 'Данные',
             'columns': {
                 'Таб. номер': 'tab_number',
@@ -49,7 +63,7 @@ ANALYSIS_CONFIG = {
             }
         },
         {
-            'path': 'test_data_period2.xlsx',
+            'path': str(IN_XLSX_DIR / 'test_data_period2.xlsx'),
             'sheet_name': 'Данные',
             'columns': {
                 'Таб. номер': 'tab_number',
@@ -62,7 +76,7 @@ ANALYSIS_CONFIG = {
             }
         },
         {
-            'path': 'test_data_period3.xlsx',
+            'path': str(IN_XLSX_DIR / 'test_data_period3.xlsx'),
             'sheet_name': 'Данные',
             'columns': {
                 'Таб. номер': 'tab_number',
@@ -78,7 +92,7 @@ ANALYSIS_CONFIG = {
     
     # Настройки выходного файла
     'output': {
-        'file_name': 'comparison_result',
+        'file_name': str(OUT_XLSX_DIR / 'comparison_result'),
         'add_timestamp': True,  # Добавлять временную метку к имени файла
         'sheets': {
             'clients': 'Клиенты',
