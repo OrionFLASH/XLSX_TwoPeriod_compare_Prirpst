@@ -112,7 +112,7 @@ ANALYSIS_CONFIG = {
 
 # Настройки для создания тестовых данных
 TEST_DATA_CONFIG = {
-    'clients_count': 500,
+    'clients_count': 25000,
     'managers_count': 1000,
     'tb_count': 11,
     'gosb_per_tb': (5, 10),  # диапазон ГОСБ в каждом ТБ
