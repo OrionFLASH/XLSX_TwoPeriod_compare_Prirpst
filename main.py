@@ -341,6 +341,9 @@ class PeriodComparison:
                     index=False
                 )
             
+            # Применение форматирования после записи всех данных
+            self._apply_formatting_to_file(output_file)
+            
             logger.log_output_created(output_file)
             logger.debug(f"Выходной файл создан: {output_file}")
             
@@ -348,6 +351,113 @@ class PeriodComparison:
             error_msg = f"Ошибка создания выходного файла: {str(e)}"
             logger.log_error(error_msg)
             raise Exception(error_msg)
+    
+    def _apply_formatting_to_file(self, file_path: str) -> None:
+        """
+        Применение форматирования к созданному Excel файлу
+        
+        Args:
+            file_path: Путь к Excel файлу
+        """
+        logger.debug("Применение форматирования к файлу")
+        
+        try:
+            from openpyxl import load_workbook
+            
+            # Загрузка файла
+            wb = load_workbook(file_path)
+            
+            # Получение настроек форматирования
+            formatting_config = self.output_config.get('formatting', {})
+            
+            # Форматирование листа клиентов
+            if 'clients' in formatting_config:
+                clients_sheet = wb[self.output_config['sheets']['clients']]
+                self._format_sheet_columns(clients_sheet, formatting_config['clients'])
+            
+            # Форматирование листа менеджеров
+            if 'managers' in formatting_config:
+                managers_sheet = wb[self.output_config['sheets']['managers']]
+                self._format_sheet_columns(managers_sheet, formatting_config['managers'])
+            
+            # Сохранение файла с форматированием
+            wb.save(file_path)
+            wb.close()
+            
+            logger.debug("Форматирование применено успешно")
+            
+        except Exception as e:
+            logger.log_error(f"Ошибка применения форматирования: {str(e)}")
+            # Не прерываем выполнение, так как форматирование не критично
+    
+    def _format_sheet_columns(self, sheet, column_formats: dict) -> None:
+        """
+        Форматирование колонок конкретного листа
+        
+        Args:
+            sheet: Лист Excel файла
+            column_formats: Словарь с настройками форматирования колонок
+        """
+        from openpyxl.styles import Font, Alignment
+        from openpyxl.utils import get_column_letter
+        
+        # Создание стилей для разных типов данных
+        number_font = Font(name='Arial', size=10)
+        number_alignment = Alignment(horizontal='right')
+        
+        text_font = Font(name='Arial', size=10)
+        text_alignment = Alignment(horizontal='left')
+        
+        # Получение заголовков для поиска колонок
+        headers = []
+        for cell in sheet[1]:
+            headers.append(cell.value)
+        
+        # Применение форматирования к каждой колонке
+        for col_name, format_config in column_formats.items():
+            # Поиск индекса колонки по имени
+            col_idx = None
+            for i, header in enumerate(headers, 1):
+                if header == col_name:
+                    col_idx = i
+                    break
+            
+            if col_idx is None:
+                logger.debug(f"Колонка '{col_name}' не найдена в листе")
+                continue
+                
+            col_letter = get_column_letter(col_idx)
+            logger.debug(f"Форматирование колонки {col_name} ({col_letter})")
+            
+            # Применение стиля и формата
+            if format_config['type'] == 'number':
+                # Применение числового формата
+                for row in range(2, sheet.max_row + 1):
+                    cell = sheet[f"{col_letter}{row}"]
+                    cell.number_format = format_config.get('format', '#,##0.00')
+                    cell.font = number_font
+                    cell.alignment = number_alignment
+            elif format_config['type'] == 'text':
+                # Применение текстового стиля
+                for row in range(2, sheet.max_row + 1):
+                    cell = sheet[f"{col_letter}{row}"]
+                    cell.font = text_font
+                    cell.alignment = text_alignment
+        
+        # Автоподбор ширины колонок
+        for column in sheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            
+            adjusted_width = min(max_length + 2, 50)  # Максимальная ширина 50
+            sheet.column_dimensions[column_letter].width = adjusted_width
     
     def run_analysis(self) -> None:
         """
