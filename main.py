@@ -668,14 +668,11 @@ def check_and_create_test_data():
             created_files = [str(f) for f in test_files]
             logger.log_test_files_created(created_files)
             logger.info("Тестовые данные созданы успешно")
-            print("Тестовые данные созданы успешно")
         else:
             logger.error("Ошибка создания тестовых данных")
-            print("Ошибка создания тестовых данных")
             return False
     else:
         logger.info("Создание тестовых данных отключено в конфигурации")
-        print("Используются существующие файлы для анализа")
     
     return True
 
@@ -705,7 +702,7 @@ def main():
             output_file = f"{base_name}_{timestamp}.xlsx"
         else:
             output_file = f"{base_name}.xlsx"
-        print(f"Анализ завершен успешно. Результаты сохранены в файл {output_file}")
+        logger.info(f"Анализ завершен успешно. Результаты сохранены в файл {output_file}")
         
     except Exception as e:
         logger.log_critical_error(str(e))

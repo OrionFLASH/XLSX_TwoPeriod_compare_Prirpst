@@ -31,12 +31,21 @@ class Logger:
         file_handler = logging.FileHandler(LOG_CONFIG['file'], encoding='utf-8')
         file_handler.setLevel(getattr(logging, LOG_CONFIG['level']))
         
-        # Создание форматтера
-        formatter = logging.Formatter(LOG_CONFIG['format'])
-        file_handler.setFormatter(formatter)
+        # Создание обработчика для консоли
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)  # В консоль только INFO и выше
         
-        # Добавление обработчика к логгеру
+        # Создание форматтера для файла
+        file_formatter = logging.Formatter(LOG_CONFIG['format'])
+        file_handler.setFormatter(file_formatter)
+        
+        # Создание форматтера для консоли (более простой)
+        console_formatter = logging.Formatter('%(asctime)s - %(message)s')
+        console_handler.setFormatter(console_formatter)
+        
+        # Добавление обработчиков к логгеру
         self.logger.addHandler(file_handler)
+        self.logger.addHandler(console_handler)
         
         # Логирование запуска программы
         self.info("Запуск программы сравнения периодов")
