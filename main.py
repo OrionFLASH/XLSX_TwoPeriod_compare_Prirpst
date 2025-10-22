@@ -7,8 +7,9 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple, Optional
-from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG
+from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG, IN_XLSX_DIR
 from logger import logger
+from test_data_generator import create_test_data
 
 
 class PeriodComparison:
@@ -513,12 +514,54 @@ class PeriodComparison:
             raise
 
 
+def check_and_create_test_data():
+    """
+    Проверяет настройку создания тестовых данных и создает их при необходимости
+    """
+    if TEST_DATA_CONFIG.get('create_test_data', False):
+        logger.info("Настройка требует создания тестовых данных")
+        
+        # Удаление старых тестовых файлов
+        import os
+        test_files = [
+            IN_XLSX_DIR / 'test_data_period1.xlsx',
+            IN_XLSX_DIR / 'test_data_period2.xlsx', 
+            IN_XLSX_DIR / 'test_data_period3.xlsx'
+        ]
+        
+        for file_path in test_files:
+            if file_path.exists():
+                file_path.unlink()
+                logger.debug(f"Удален старый тестовый файл: {file_path}")
+        
+        # Создание новых тестовых данных
+        logger.info("Создание новых тестовых данных...")
+        success = create_test_data()
+        
+        if success:
+            logger.info("Тестовые данные созданы успешно")
+            print("Тестовые данные созданы успешно")
+        else:
+            logger.error("Ошибка создания тестовых данных")
+            print("Ошибка создания тестовых данных")
+            return False
+    else:
+        logger.info("Создание тестовых данных отключено в конфигурации")
+        print("Используются существующие файлы для анализа")
+    
+    return True
+
+
 def main():
     """
     Главная функция программы
     Запускает анализ периодов
     """
     try:
+        # Проверка и создание тестовых данных при необходимости
+        if not check_and_create_test_data():
+            return 1
+        
         # Создание экземпляра класса анализа
         analyzer = PeriodComparison()
         

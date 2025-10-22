@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import random
 from typing import List, Tuple
-from config import TEST_DATA_CONFIG, IN_XLSX_DIR
+from config import TEST_DATA_CONFIG, IN_XLSX_DIR, LOG_MESSAGES
 from logger import logger
 
 

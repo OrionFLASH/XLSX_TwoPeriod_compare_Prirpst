@@ -152,6 +152,7 @@ ANALYSIS_CONFIG = {
 
 # Настройки для создания тестовых данных
 TEST_DATA_CONFIG = {
+    'create_test_data': False,  # Создавать тестовые данные при запуске (True/False)
     'clients_count': 25000,
     'managers_count': 1000,
     'tb_count': 11,
