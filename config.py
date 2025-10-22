@@ -47,6 +47,9 @@ ANALYSIS_CONFIG = {
     # Количество файлов для анализа (2 или 3)
     'file_count': 3,
     
+    # Режим расчета прироста
+    'growth_calculation_mode': 'report_date',  # 'report_date' или 'deal_date'
+    
     # Настройки файлов
     'files': [
         {
@@ -96,7 +99,8 @@ ANALYSIS_CONFIG = {
         'add_timestamp': True,  # Добавлять временную метку к имени файла
         'sheets': {
             'clients': 'Клиенты',
-            'managers': 'Клиентские менеджеры'
+            'managers': 'Клиентские менеджеры',
+            'managers_deal_date': 'КМ по дате сделки'
         },
         'columns': {
             'clients': [
@@ -112,6 +116,16 @@ ANALYSIS_CONFIG = {
                 'ТБ'
             ],
             'managers': [
+                'Табельный уникальный',
+                'ФИО',
+                'ТБ',
+                'ГОСБ',
+                'Показатель 1',
+                'Показатель 2',
+                'Показатель 3',
+                'Суммарный прирост'
+            ],
+            'managers_deal_date': [
                 'Табельный уникальный',
                 'ФИО',
                 'ТБ',
@@ -137,6 +151,16 @@ ANALYSIS_CONFIG = {
                 'ТБ': {'type': 'text'}
             },
             'managers': {
+                'Табельный уникальный': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'ФИО': {'type': 'text'},
+                'ТБ': {'type': 'text'},
+                'ГОСБ': {'type': 'text'},
+                'Показатель 1': {'type': 'number', 'format': '#,##0.00'},
+                'Показатель 2': {'type': 'number', 'format': '#,##0.00'},
+                'Показатель 3': {'type': 'number', 'format': '#,##0.00'},
+                'Суммарный прирост': {'type': 'number', 'format': '#,##0.00'}
+            },
+            'managers_deal_date': {
                 'Табельный уникальный': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
                 'ФИО': {'type': 'text'},
                 'ТБ': {'type': 'text'},

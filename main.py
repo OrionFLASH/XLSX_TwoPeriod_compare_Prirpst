@@ -265,13 +265,85 @@ class PeriodComparison:
         logger.debug(f"Сводка по менеджерам создана: {len(managers_summary)} уникальных менеджеров")
         return managers_summary
     
-    def create_output_file(self, clients_base: pd.DataFrame, managers_summary: pd.DataFrame) -> None:
+    def create_managers_deal_date_summary(self, clients_base: pd.DataFrame) -> pd.DataFrame:
+        """
+        Создание сводки по менеджерам с расчетом по дате сделки
+        Для каждого КМ суммируются показатели клиентов, которые были закреплены за ним в каждом периоде
+        
+        Args:
+            clients_base (pd.DataFrame): База клиентов с приростами
+            
+        Returns:
+            pd.DataFrame: Сводка по менеджерам по дате сделки
+        """
+        logger.debug("Создание сводки по менеджерам по дате сделки")
+        
+        # Создаем словарь для хранения данных по менеджерам
+        managers_data = {}
+        
+        # Обрабатываем каждый период отдельно
+        for period in range(1, self.file_count + 1):
+            period_key = f'period_{period}'
+            if period_key in self.data_frames:
+                df = self.data_frames[period_key]
+                
+                # Группируем по табельному номеру и суммируем показатели
+                period_summary = df.groupby('tab_number').agg({
+                    'fio': 'first',
+                    'tb': 'first', 
+                    'gosb': 'first',
+                    'value': 'sum'
+                }).reset_index()
+                
+                # Сохраняем данные для каждого менеджера
+                for _, row in period_summary.iterrows():
+                    tab_num = row['tab_number']
+                    if tab_num not in managers_data:
+                        managers_data[tab_num] = {
+                            'tab_number': tab_num,
+                            'fio': row['fio'],
+                            'tb': row['tb'],
+                            'gosb': row['gosb'],
+                            'value_1': 0,
+                            'value_2': 0,
+                            'value_3': 0
+                        }
+                    
+                    # Записываем показатель для соответствующего периода
+                    if period == 1:
+                        managers_data[tab_num]['value_1'] = row['value']
+                    elif period == 2:
+                        managers_data[tab_num]['value_2'] = row['value']
+                    elif period == 3:
+                        managers_data[tab_num]['value_3'] = row['value']
+        
+        # Преобразуем словарь в DataFrame
+        managers_list = list(managers_data.values())
+        managers_summary = pd.DataFrame(managers_list)
+        
+        # Расчет прироста по дате сделки
+        if self.file_count == 2:
+            # Прирост = показатель в файле 2 - показатель в файле 1
+            managers_summary['total_growth'] = (
+                managers_summary['value_2'] - managers_summary['value_1']
+            )
+        elif self.file_count == 3:
+            # Прирост = (файл 3 - файл 2) - (файл 2 - файл 1)
+            period_2_1 = managers_summary['value_2'] - managers_summary['value_1']
+            period_3_2 = managers_summary['value_3'] - managers_summary['value_2']
+            managers_summary['total_growth'] = period_3_2 - period_2_1
+        
+        logger.debug(f"Сводка по менеджерам по дате сделки создана: {len(managers_summary)} уникальных менеджеров")
+        return managers_summary
+    
+    def create_output_file(self, clients_base: pd.DataFrame, managers_summary: pd.DataFrame, managers_deal_date_summary: pd.DataFrame = None) -> None:
         """
         Создание выходного Excel файла с результатами
         
         Args:
             clients_base (pd.DataFrame): База клиентов с приростами
             managers_summary (pd.DataFrame): Сводка по менеджерам
+            managers_deal_date_summary (pd.DataFrame, optional): Сводка по менеджерам по дате сделки
         """
         # Формирование имени файла с временной меткой
         base_name = self.output_config['file_name']
@@ -353,6 +425,35 @@ class PeriodComparison:
                     sheet_name=self.output_config['sheets']['managers'],
                     index=False
                 )
+                
+                # Создание листа менеджеров по дате сделки (если есть данные)
+                if managers_deal_date_summary is not None:
+                    managers_deal_date_output = managers_deal_date_summary.copy()
+                    
+                    # Переименование колонок для читаемости
+                    managers_deal_date_column_mapping = {
+                        'tab_number': 'Табельный уникальный',
+                        'fio': 'ФИО',
+                        'tb': 'ТБ',
+                        'gosb': 'ГОСБ',
+                        'value_1': 'Показатель 1',
+                        'value_2': 'Показатель 2',
+                        'value_3': 'Показатель 3',
+                        'total_growth': 'Суммарный прирост'
+                    }
+                    
+                    managers_deal_date_output = managers_deal_date_output.rename(columns=managers_deal_date_column_mapping)
+                    
+                    # Удаление колонки value_3 если только 2 периода
+                    if self.file_count == 2:
+                        managers_deal_date_output = managers_deal_date_output.drop(columns=['Показатель 3'], errors='ignore')
+                    
+                    # Запись листа менеджеров по дате сделки
+                    managers_deal_date_output.to_excel(
+                        writer,
+                        sheet_name=self.output_config['sheets']['managers_deal_date'],
+                        index=False
+                    )
             
             # Применение форматирования после записи всех данных
             self._apply_formatting_to_file(output_file)
@@ -392,6 +493,11 @@ class PeriodComparison:
             if 'managers' in formatting_config:
                 managers_sheet = wb[self.output_config['sheets']['managers']]
                 self._format_sheet_columns(managers_sheet, formatting_config['managers'])
+            
+            # Форматирование листа менеджеров по дате сделки
+            if 'managers_deal_date' in formatting_config:
+                managers_deal_date_sheet = wb[self.output_config['sheets']['managers_deal_date']]
+                self._format_sheet_columns(managers_deal_date_sheet, formatting_config['managers_deal_date'])
             
             # Сохранение файла с форматированием
             wb.save(file_path)
@@ -504,8 +610,11 @@ class PeriodComparison:
             # Создание сводки по менеджерам
             managers_summary = self.create_managers_summary(clients_base)
             
+            # Создание сводки по менеджерам по дате сделки
+            managers_deal_date_summary = self.create_managers_deal_date_summary(clients_base)
+            
             # Создание выходного файла
-            self.create_output_file(clients_base, managers_summary)
+            self.create_output_file(clients_base, managers_summary, managers_deal_date_summary)
             
             logger.info("Анализ завершен успешно")
             
