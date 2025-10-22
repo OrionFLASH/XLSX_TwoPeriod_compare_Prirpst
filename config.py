@@ -78,7 +78,8 @@ ANALYSIS_CONFIG = {
     
     # Настройки выходного файла
     'output': {
-        'file_name': 'comparison_result.xlsx',
+        'file_name': 'comparison_result',
+        'add_timestamp': True,  # Добавлять временную метку к имени файла
         'sheets': {
             'clients': 'Клиенты',
             'managers': 'Клиентские менеджеры'
@@ -110,19 +111,19 @@ ANALYSIS_CONFIG = {
         # Форматирование колонок
         'formatting': {
             'clients': {
-                'Идентификатор клиента': {'type': 'text'},
+                'Идентификатор клиента': {'type': 'text_padded', 'format': '20', 'pad_char': '0'},
                 'Наименование клиента': {'type': 'text'},
                 'Показатель 1': {'type': 'number', 'format': '#,##0.00'},
                 'Показатель 2': {'type': 'number', 'format': '#,##0.00'},
                 'Показатель 3': {'type': 'number', 'format': '#,##0.00'},
                 'Прирост': {'type': 'number', 'format': '#,##0.00'},
-                'Табельный итоговый': {'type': 'number', 'format': '0'},
+                'Табельный итоговый': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
                 'ФИО итогового сотрудника': {'type': 'text'},
                 'ГОСБ': {'type': 'text'},
                 'ТБ': {'type': 'text'}
             },
             'managers': {
-                'Табельный уникальный': {'type': 'number', 'format': '0'},
+                'Табельный уникальный': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
                 'ФИО': {'type': 'text'},
                 'ТБ': {'type': 'text'},
                 'ГОСБ': {'type': 'text'},

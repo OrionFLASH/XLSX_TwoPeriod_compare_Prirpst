@@ -72,7 +72,11 @@ class PeriodComparison:
             
             # Преобразование типов данных (после переименования)
             if 'tab_number' in df.columns:
-                df['tab_number'] = pd.to_numeric(df['tab_number'], errors='coerce').fillna(0).astype(int)
+                # Обработка табельных номеров с апострофами
+                df['tab_number'] = df['tab_number'].astype(str).str.replace("'", "").str.zfill(8)
+            if 'client_id' in df.columns:
+                # Обработка ID клиентов с апострофами
+                df['client_id'] = df['client_id'].astype(str).str.replace("'", "").str.zfill(20)
             if 'value' in df.columns:
                 df['value'] = pd.to_numeric(df['value'], errors='coerce').fillna(0)
             
@@ -268,7 +272,15 @@ class PeriodComparison:
             clients_base (pd.DataFrame): База клиентов с приростами
             managers_summary (pd.DataFrame): Сводка по менеджерам
         """
-        output_file = self.output_config['file_name']
+        # Формирование имени файла с временной меткой
+        base_name = self.output_config['file_name']
+        if self.output_config.get('add_timestamp', False):
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            output_file = f"{base_name}_{timestamp}.xlsx"
+        else:
+            output_file = f"{base_name}.xlsx"
+        
         logger.log_output_creation(output_file)
         
         try:
@@ -443,6 +455,18 @@ class PeriodComparison:
                     cell = sheet[f"{col_letter}{row}"]
                     cell.font = text_font
                     cell.alignment = text_alignment
+            elif format_config['type'] == 'text_padded':
+                # Применение текстового стиля с дополнением нулями
+                pad_length = int(format_config.get('format', '8'))
+                pad_char = format_config.get('pad_char', '0')
+                
+                for row in range(2, sheet.max_row + 1):
+                    cell = sheet[f"{col_letter}{row}"]
+                    # Дополняем значение нулями до нужной длины
+                    if cell.value is not None:
+                        cell.value = str(cell.value).zfill(pad_length)
+                    cell.font = text_font
+                    cell.alignment = text_alignment
         
         # Автоподбор ширины колонок
         for column in sheet.columns:
@@ -502,7 +526,15 @@ def main():
         analyzer.run_analysis()
         
         logger.log_program_end()
-        print("Анализ завершен успешно. Результаты сохранены в файл comparison_result.xlsx")
+        # Получаем актуальное имя файла из конфигурации
+        base_name = analyzer.output_config['file_name']
+        if analyzer.output_config.get('add_timestamp', False):
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            output_file = f"{base_name}_{timestamp}.xlsx"
+        else:
+            output_file = f"{base_name}.xlsx"
+        print(f"Анализ завершен успешно. Результаты сохранены в файл {output_file}")
         
     except Exception as e:
         logger.log_error(f"Критическая ошибка: {str(e)}")

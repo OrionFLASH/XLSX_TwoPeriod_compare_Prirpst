@@ -48,7 +48,7 @@ class TestDataGenerator:
         self.managers = []
         for i in range(self.managers_count):
             manager = {
-                'tab_number': i + 1,
+                'tab_number': str(i + 1).zfill(8),  # 8 знаков с лидирующими нулями
                 'fio': f"Менеджер_{i+1:04d}",
                 'tb': f"ТБ_{random.randint(1, self.tb_count):02d}",
                 'gosb': f"ГОСБ_{random.randint(1, random.randint(*self.gosb_per_tb_range)):02d}"
@@ -59,7 +59,7 @@ class TestDataGenerator:
         self.clients = []
         for i in range(self.clients_count):
             client = {
-                'client_id': f"CLIENT_{i+1:06d}",
+                'client_id': str(i + 1).zfill(20),  # 20 знаков с лидирующими нулями
                 'client_name': f"Клиент_{i+1:06d}"
             }
             self.clients.append(client)
@@ -147,11 +147,11 @@ class TestDataGenerator:
             
             # Создание записи
             record = {
-                'Таб. номер': manager['tab_number'],
+                'Таб. номер': f"'{manager['tab_number']}",  # Добавляем апостроф для сохранения как текст
                 'Фамилия': manager['fio'],
                 'коротко ТБ': manager['tb'],
                 'короткое наименование ГОСБ': manager['gosb'],
-                'ЕПК ИД': client['client_id'],
+                'ЕПК ИД': f"'{client['client_id']}",  # Добавляем апостроф для сохранения как текст
                 'Наименование клиента': client['client_name'],
                 'СДО руб': round(value, 2)
             }
