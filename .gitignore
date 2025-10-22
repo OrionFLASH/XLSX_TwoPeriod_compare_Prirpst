@@ -33,6 +33,7 @@ logs/
 IN_XLSX/
 OUT_XLSX/
 LOGS/
+Source/
 
 # Excel файлы (кроме тестовых)
 *.xlsx
