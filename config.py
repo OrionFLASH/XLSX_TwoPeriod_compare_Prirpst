@@ -40,42 +40,42 @@ ANALYSIS_CONFIG = {
     # Настройки файлов
     'files': [
         {
-            'path': str(IN_XLSX_DIR / 'test_data_period1.xlsx'),
-            'sheet_name': 'Данные',
+            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-04-2025).xlsx'),
+            'sheet_name': 'Sheet1',
             'columns': {
                 'Таб. номер': 'tab_number',
-                'Фамилия': 'fio',
-                'коротко ТБ': 'tb',
-                'короткое наименование ГОСБ': 'gosb',
-                'ЕПК ИД': 'client_id',
-                'Наименование клиента': 'client_name',
-                'СДО руб': 'value'
+                'КМ': 'fio',
+                'ТБ': 'tb',
+                'ГОСБ': 'gosb',
+                'ИНН': 'client_id',
+                'Клиент': 'client_name',
+                'ФОТ': 'value'
             }
         },
         {
-            'path': str(IN_XLSX_DIR / 'test_data_period2.xlsx'),
-            'sheet_name': 'Данные',
+            'path': str(IN_XLSX_DIR / 'QS ФОТ (31-05-2025).xlsx'),
+            'sheet_name': 'Sheet1',
             'columns': {
                 'Таб. номер': 'tab_number',
-                'Фамилия': 'fio',
-                'коротко ТБ': 'tb',
-                'короткое наименование ГОСБ': 'gosb',
-                'ЕПК ИД': 'client_id',
-                'Наименование клиента': 'client_name',
-                'СДО руб': 'value'
+                'КМ': 'fio',
+                'ТБ': 'tb',
+                'ГОСБ': 'gosb',
+                'ИНН': 'client_id',
+                'Клиент': 'client_name',
+                'ФОТ': 'value'
             }
         },
         {
-            'path': str(IN_XLSX_DIR / 'test_data_period3.xlsx'),
-            'sheet_name': 'Данные',
+            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-06-2025).xlsx'),
+            'sheet_name': 'Sheet1',
             'columns': {
                 'Таб. номер': 'tab_number',
-                'Фамилия': 'fio',
-                'коротко ТБ': 'tb',
-                'короткое наименование ГОСБ': 'gosb',
-                'ЕПК ИД': 'client_id',
-                'Наименование клиента': 'client_name',
-                'СДО руб': 'value'
+                'КМ': 'fio',
+                'ТБ': 'tb',
+                'ГОСБ': 'gosb',
+                'ИНН': 'client_id',
+                'Клиент': 'client_name',
+                'ФОТ': 'value'
             }
         }
     ],
@@ -91,71 +91,71 @@ ANALYSIS_CONFIG = {
         },
         'columns': {
             'clients': [
-                'Идентификатор клиента',
-                'Наименование клиента',
-                'Показатель 1',
-                'Показатель 2',
-                'Показатель 3',
-                'Прирост',
-                'Табельный итоговый',
-                'ФИО итогового сотрудника',
+                'ID client',
+                'Client Name',
+                'val (T-0)',
+                'val (T-1)',
+                'val (T-2)',
+                'Gain',
+                'TN (final)',
+                'ФИО КМ (final)',
                 'ГОСБ',
                 'ТБ'
             ],
             'managers': [
-                'Табельный уникальный',
+                'TN (unic)',
                 'ФИО',
                 'ТБ',
                 'ГОСБ',
-                'Показатель 1',
-                'Показатель 2',
-                'Показатель 3',
-                'Суммарный прирост'
+                'val (T-0)',
+                'val (T-1)',
+                'val (T-2)',
+                'Gain (total)'
             ],
             'managers_deal_date': [
-                'Табельный уникальный',
+                'TN (unic)',
                 'ФИО',
                 'ТБ',
                 'ГОСБ',
-                'Показатель 1',
-                'Показатель 2',
-                'Показатель 3',
-                'Суммарный прирост'
+                'val (T-0)',
+                'val (T-1)',
+                'val (T-2)',
+                'Gain (total)'
             ]
         },
         # Форматирование колонок
         'formatting': {
             'clients': {
-                'Идентификатор клиента': {'type': 'text_padded', 'format': '20', 'pad_char': '0'},
-                'Наименование клиента': {'type': 'text'},
-                'Показатель 1': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 2': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 3': {'type': 'number', 'format': '#,##0.00'},
-                'Прирост': {'type': 'number', 'format': '#,##0.00'},
-                'Табельный итоговый': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
-                'ФИО итогового сотрудника': {'type': 'text'},
+                'ID client': {'type': 'text_padded', 'format': '20', 'pad_char': '0'},
+                'Client Name': {'type': 'text'},
+                'val (T-0)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-1)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-2)': {'type': 'number', 'format': '#,##0.00'},
+                'Gain': {'type': 'number', 'format': '#,##0.00'},
+                'TN (final)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'ФИО КМ (final)': {'type': 'text'},
                 'ГОСБ': {'type': 'text'},
                 'ТБ': {'type': 'text'}
             },
             'managers': {
-                'Табельный уникальный': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'TN (unic)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
                 'ФИО': {'type': 'text'},
                 'ТБ': {'type': 'text'},
                 'ГОСБ': {'type': 'text'},
-                'Показатель 1': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 2': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 3': {'type': 'number', 'format': '#,##0.00'},
-                'Суммарный прирост': {'type': 'number', 'format': '#,##0.00'}
+                'val (T-0)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-1)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-2)': {'type': 'number', 'format': '#,##0.00'},
+                'Gain (total)': {'type': 'number', 'format': '#,##0.00'}
             },
             'managers_deal_date': {
-                'Табельный уникальный': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'TN (unic)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
                 'ФИО': {'type': 'text'},
                 'ТБ': {'type': 'text'},
                 'ГОСБ': {'type': 'text'},
-                'Показатель 1': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 2': {'type': 'number', 'format': '#,##0.00'},
-                'Показатель 3': {'type': 'number', 'format': '#,##0.00'},
-                'Суммарный прирост': {'type': 'number', 'format': '#,##0.00'}
+                'val (T-0)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-1)': {'type': 'number', 'format': '#,##0.00'},
+                'val (T-2)': {'type': 'number', 'format': '#,##0.00'},
+                'Gain (total)': {'type': 'number', 'format': '#,##0.00'}
             }
         }
     }

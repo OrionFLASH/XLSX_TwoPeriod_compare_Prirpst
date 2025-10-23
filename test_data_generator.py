@@ -168,12 +168,12 @@ class TestDataGenerator:
             # Создание записи
             record = {
                 'Таб. номер': tab_number,
-                'Фамилия': manager['fio'],
-                'коротко ТБ': manager['tb'],
-                'короткое наименование ГОСБ': manager['gosb'],
-                'ЕПК ИД': client_id,
-                'Наименование клиента': client['client_name'],
-                'СДО руб': value_to_use
+                'КМ': manager['fio'],
+                'ТБ': manager['tb'],
+                'ГОСБ': manager['gosb'],
+                'ИНН': client_id,
+                'Клиент': client['client_name'],
+                'ФОТ': value_to_use
             }
             
             data.append(record)
@@ -198,11 +198,16 @@ class TestDataGenerator:
                 df = self.generate_period_data(period)
                 
                 # Создание имени файла в каталоге IN_XLSX
-                filename = IN_XLSX_DIR / f"test_data_period{period}.xlsx"
+                if period == 1:
+                    filename = IN_XLSX_DIR / "QS ФОТ (30-04-2025).xlsx"
+                elif period == 2:
+                    filename = IN_XLSX_DIR / "QS ФОТ (31-05-2025).xlsx"
+                else:
+                    filename = IN_XLSX_DIR / "QS ФОТ (30-06-2025).xlsx"
                 
                 # Сохранение в Excel файл
                 with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-                    df.to_excel(writer, sheet_name='Данные', index=False)
+                    df.to_excel(writer, sheet_name='Sheet1', index=False)
                 
                 logger.debug(f"Создан тестовый файл: {filename}")
             

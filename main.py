@@ -249,13 +249,14 @@ class PeriodComparison:
             period_num = i + 1
             
             # Создание словаря для маппинга клиент -> данные
+            # Суммируем все показатели по каждому клиенту
             period_data = df.groupby('client_id').agg({
                 'tab_number': 'first',
                 'fio': 'first',
                 'tb': 'first',
                 'gosb': 'first',
                 'client_name': 'first',
-                'value': 'sum'
+                'value': 'sum'  # Суммируем все значения по клиенту
             }).reset_index()
             
             # Добавление колонок с данными периода
@@ -284,6 +285,11 @@ class PeriodComparison:
             clients_base[f'tb_period_{i}'] = clients_base[f'tb_period_{i}'].fillna('')
             clients_base[f'gosb_period_{i}'] = clients_base[f'gosb_period_{i}'].fillna('')
             clients_base[f'client_name_period_{i}'] = clients_base[f'client_name_period_{i}'].fillna('')
+            
+            # Для табельного номера 90000000 устанавливаем "-" в ТБ и ГОСБ
+            mask_90000000 = clients_base[f'tab_number_period_{i}'] == 90000000
+            clients_base.loc[mask_90000000, f'tb_period_{i}'] = '-'
+            clients_base.loc[mask_90000000, f'gosb_period_{i}'] = '-'
         
         # Определение итогового табельного номера
         clients_base['final_tab_number'] = 0
@@ -299,12 +305,20 @@ class PeriodComparison:
             clients_base.loc[mask, 'final_tb'] = clients_base.loc[mask, f'tb_period_{i}']
             clients_base.loc[mask, 'final_gosb'] = clients_base.loc[mask, f'gosb_period_{i}']
         
+        # Для итогового табельного номера 90000000 устанавливаем "-" в ТБ и ГОСБ
+        mask_final_90000000 = clients_base['final_tab_number'] == 90000000
+        clients_base.loc[mask_final_90000000, 'final_tb'] = '-'
+        clients_base.loc[mask_final_90000000, 'final_gosb'] = '-'
+        
         logger.debug(f"База клиентов создана: {len(clients_base)} уникальных клиентов")
         return clients_base
     
     def calculate_growth(self, clients_base: pd.DataFrame) -> pd.DataFrame:
         """
         Расчет приростов согласно формуле
+        T-0 (первый файл) - текущий период
+        T-1 (второй файл) - прошлый период  
+        T-2 (третий файл) - позапрошлый период
         
         Args:
             clients_base (pd.DataFrame): База клиентов с данными по периодам
@@ -316,15 +330,15 @@ class PeriodComparison:
         
         # Расчет прироста в зависимости от количества периодов
         if self.file_count == 2:
-            # Прирост = показатель в файле 2 - показатель в файле 1
+            # Прирост = T-0 - T-1 (текущий - прошлый)
             clients_base['growth'] = (
-                clients_base['value_period_2'] - clients_base['value_period_1']
+                clients_base['value_period_1'] - clients_base['value_period_2']
             )
         elif self.file_count == 3:
-            # Прирост = (файл 3 - файл 2) - (файл 2 - файл 1)
-            period_2_1 = clients_base['value_period_2'] - clients_base['value_period_1']
-            period_3_2 = clients_base['value_period_3'] - clients_base['value_period_2']
-            clients_base['growth'] = period_3_2 - period_2_1
+            # Прирост = ((T-0) - (T-1)) - ((T-1) - (T-2))
+            period_0_1 = clients_base['value_period_1'] - clients_base['value_period_2']
+            period_1_2 = clients_base['value_period_2'] - clients_base['value_period_3']
+            clients_base['growth'] = period_0_1 - period_1_2
         else:
             raise ValueError(f"Неподдерживаемое количество периодов: {self.file_count}")
         
@@ -346,27 +360,37 @@ class PeriodComparison:
         logger.debug("Создание сводки по менеджерам")
         
         # Группировка по итоговому табельному номеру
-        managers_summary = clients_base.groupby('final_tab_number').agg({
+        agg_dict = {
             'final_fio': 'first',
             'final_tb': 'first',
             'final_gosb': 'first',
             'value_period_1': 'sum',
             'value_period_2': 'sum',
-            'value_period_3': 'sum' if self.file_count == 3 else 'sum',
             'growth': 'sum'
-        }).reset_index()
+        }
+        
+        # Добавляем value_period_3 только если есть 3 периода
+        if self.file_count == 3:
+            agg_dict['value_period_3'] = 'sum'
+        
+        managers_summary = clients_base.groupby('final_tab_number').agg(agg_dict).reset_index()
         
         # Переименование колонок для соответствия выходному формату
-        managers_summary = managers_summary.rename(columns={
+        rename_dict = {
             'final_tab_number': 'tab_number',
             'final_fio': 'fio',
             'final_tb': 'tb',
             'final_gosb': 'gosb',
             'value_period_1': 'value_1',
             'value_period_2': 'value_2',
-            'value_period_3': 'value_3' if self.file_count == 3 else None,
             'growth': 'total_growth'
-        })
+        }
+        
+        # Добавляем value_period_3 только если есть 3 периода
+        if self.file_count == 3:
+            rename_dict['value_period_3'] = 'value_3'
+        
+        managers_summary = managers_summary.rename(columns=rename_dict)
         
         # Удаление колонки value_3 если только 2 периода
         if self.file_count == 2:
@@ -424,7 +448,7 @@ class PeriodComparison:
                         managers_data[tab_num]['value_1'] = row['value']
                     elif period == 2:
                         managers_data[tab_num]['value_2'] = row['value']
-                    elif period == 3:
+                    elif period == 3 and self.file_count == 3:
                         managers_data[tab_num]['value_3'] = row['value']
         
         # Преобразуем словарь в DataFrame
@@ -433,15 +457,15 @@ class PeriodComparison:
         
         # Расчет прироста по дате сделки
         if self.file_count == 2:
-            # Прирост = показатель в файле 2 - показатель в файле 1
+            # Прирост = T-0 - T-1 (текущий - прошлый)
             managers_summary['total_growth'] = (
-                managers_summary['value_2'] - managers_summary['value_1']
+                managers_summary['value_1'] - managers_summary['value_2']
             )
         elif self.file_count == 3:
-            # Прирост = (файл 3 - файл 2) - (файл 2 - файл 1)
-            period_2_1 = managers_summary['value_2'] - managers_summary['value_1']
-            period_3_2 = managers_summary['value_3'] - managers_summary['value_2']
-            managers_summary['total_growth'] = period_3_2 - period_2_1
+            # Прирост = ((T-0) - (T-1)) - ((T-1) - (T-2))
+            period_0_1 = managers_summary['value_1'] - managers_summary['value_2']
+            period_1_2 = managers_summary['value_2'] - managers_summary['value_3']
+            managers_summary['total_growth'] = period_0_1 - period_1_2
         
         logger.debug(f"Сводка по менеджерам по дате сделки создана: {len(managers_summary)} уникальных менеджеров")
         return managers_summary
@@ -470,32 +494,37 @@ class PeriodComparison:
         try:
             with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
                 # Подготовка данных для листа клиентов
-                clients_output = clients_base[[
+                columns_to_select = [
                     'client_id',
                     'client_name_period_1',
                     'value_period_1',
                     'value_period_2',
-                    'value_period_3' if self.file_count == 3 else None,
                     'growth',
                     'final_tab_number',
                     'final_fio',
                     'final_gosb',
                     'final_tb'
-                ]].copy()
+                ]
+                
+                # Добавляем колонку value_period_3 только если есть 3 периода
+                if self.file_count == 3:
+                    columns_to_select.insert(4, 'value_period_3')
+                
+                clients_output = clients_base[columns_to_select].copy()
                 
                 # Удаление None колонок
                 clients_output = clients_output.dropna(axis=1, how='all')
                 
                 # Переименование колонок для читаемости
                 column_mapping = {
-                    'client_id': 'Идентификатор клиента',
-                    'client_name_period_1': 'Наименование клиента',
-                    'value_period_1': 'Показатель 1',
-                    'value_period_2': 'Показатель 2',
-                    'value_period_3': 'Показатель 3',
-                    'growth': 'Прирост',
-                    'final_tab_number': 'Табельный итоговый',
-                    'final_fio': 'ФИО итогового сотрудника',
+                    'client_id': 'ID client',
+                    'client_name_period_1': 'Client Name',
+                    'value_period_1': 'val (T-0)',
+                    'value_period_2': 'val (T-1)',
+                    'value_period_3': 'val (T-2)',
+                    'growth': 'Gain',
+                    'final_tab_number': 'TN (final)',
+                    'final_fio': 'ФИО КМ (final)',
                     'final_gosb': 'ГОСБ',
                     'final_tb': 'ТБ'
                 }
@@ -514,21 +543,21 @@ class PeriodComparison:
                 
                 # Переименование колонок для читаемости
                 managers_column_mapping = {
-                    'tab_number': 'Табельный уникальный',
+                    'tab_number': 'TN (unic)',
                     'fio': 'ФИО',
                     'tb': 'ТБ',
                     'gosb': 'ГОСБ',
-                    'value_1': 'Показатель 1',
-                    'value_2': 'Показатель 2',
-                    'value_3': 'Показатель 3',
-                    'total_growth': 'Суммарный прирост'
+                    'value_1': 'val (T-0)',
+                    'value_2': 'val (T-1)',
+                    'value_3': 'val (T-2)',
+                    'total_growth': 'Gain (total)'
                 }
                 
                 managers_output = managers_output.rename(columns=managers_column_mapping)
                 
-                # Удаление колонки value_3 если только 2 периода
+                # Удаление колонки val (T-2) если только 2 периода
                 if self.file_count == 2:
-                    managers_output = managers_output.drop(columns=['Показатель 3'], errors='ignore')
+                    managers_output = managers_output.drop(columns=['val (T-2)'], errors='ignore')
                 
                 # Запись листа менеджеров
                 managers_output.to_excel(
@@ -543,21 +572,21 @@ class PeriodComparison:
                     
                     # Переименование колонок для читаемости
                     managers_deal_date_column_mapping = {
-                        'tab_number': 'Табельный уникальный',
+                        'tab_number': 'TN (unic)',
                         'fio': 'ФИО',
                         'tb': 'ТБ',
                         'gosb': 'ГОСБ',
-                        'value_1': 'Показатель 1',
-                        'value_2': 'Показатель 2',
-                        'value_3': 'Показатель 3',
-                        'total_growth': 'Суммарный прирост'
+                        'value_1': 'val (T-0)',
+                        'value_2': 'val (T-1)',
+                        'value_3': 'val (T-2)',
+                        'total_growth': 'Gain (total)'
                     }
                     
                     managers_deal_date_output = managers_deal_date_output.rename(columns=managers_deal_date_column_mapping)
                     
-                    # Удаление колонки value_3 если только 2 периода
+                    # Удаление колонки val (T-2) если только 2 периода
                     if self.file_count == 2:
-                        managers_deal_date_output = managers_deal_date_output.drop(columns=['Показатель 3'], errors='ignore')
+                        managers_deal_date_output = managers_deal_date_output.drop(columns=['val (T-2)'], errors='ignore')
                     
                     # Запись листа менеджеров по дате сделки
                     managers_deal_date_output.to_excel(
@@ -588,6 +617,7 @@ class PeriodComparison:
         
         try:
             from openpyxl import load_workbook
+            from openpyxl.utils import get_column_letter
             
             # Загрузка файла
             wb = load_workbook(file_path)
@@ -599,16 +629,19 @@ class PeriodComparison:
             if 'clients' in formatting_config:
                 clients_sheet = wb[self.output_config['sheets']['clients']]
                 self._format_sheet_columns(clients_sheet, formatting_config['clients'])
+                self._apply_autofilter_and_freeze(clients_sheet)
             
             # Форматирование листа менеджеров
             if 'managers' in formatting_config:
                 managers_sheet = wb[self.output_config['sheets']['managers']]
                 self._format_sheet_columns(managers_sheet, formatting_config['managers'])
+                self._apply_autofilter_and_freeze(managers_sheet)
             
             # Форматирование листа менеджеров по дате сделки
             if 'managers_deal_date' in formatting_config:
                 managers_deal_date_sheet = wb[self.output_config['sheets']['managers_deal_date']]
                 self._format_sheet_columns(managers_deal_date_sheet, formatting_config['managers_deal_date'])
+                self._apply_autofilter_and_freeze(managers_deal_date_sheet)
             
             # Сохранение файла с форматированием
             wb.save(file_path)
@@ -700,6 +733,28 @@ class PeriodComparison:
             
             adjusted_width = min(max_length + 2, 50)  # Максимальная ширина 50
             sheet.column_dimensions[column_letter].width = adjusted_width
+    
+    def _apply_autofilter_and_freeze(self, sheet) -> None:
+        """
+        Применение автофильтра и закрепления первой строки
+        
+        Args:
+            sheet: Лист Excel файла
+        """
+        try:
+            from openpyxl.utils import get_column_letter
+            
+            # Применение автофильтра ко всем данным
+            if sheet.max_row > 1:
+                sheet.auto_filter.ref = f"A1:{get_column_letter(sheet.max_column)}{sheet.max_row}"
+            
+            # Закрепление первой строки
+            sheet.freeze_panes = "A2"
+            
+            logger.debug(f"Автофильтр и закрепление применены к листу {sheet.title}")
+            
+        except Exception as e:
+            logger.log_error(f"Ошибка применения автофильтра и закрепления: {str(e)}")
     
     def run_analysis(self) -> None:
         """
