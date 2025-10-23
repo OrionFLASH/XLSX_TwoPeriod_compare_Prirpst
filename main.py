@@ -7,7 +7,7 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple, Optional
-from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG, PROGRAM_MODES, IN_XLSX_DIR
+from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG, PROGRAM_MODES, IN_XLSX_DIR, TB_GOSB_CODES
 from logger import logger
 from test_data_generator import create_test_data
 
@@ -28,6 +28,8 @@ class PeriodComparison:
         self.files_config = self.config['files']
         self.output_config = self.config['output']
         self.program_mode = PROGRAM_MODES['mode']
+        self.aggregation_rules = self.config.get('aggregation_rules', {})
+        self.tb_gosb_codes = TB_GOSB_CODES
         
         # Словари для хранения данных из каждого файла
         self.data_frames = {}
@@ -274,33 +276,52 @@ class PeriodComparison:
         """
         logger.debug("Создание базы клиентов")
         
-        # Сбор всех уникальных идентификаторов клиентов
-        all_client_ids = set()
+        # Сбор всех уникальных ключей агрегации клиентов
+        all_client_keys = set()
         for period_key, df in self.data_frames.items():
-            all_client_ids.update(df['client_id'].unique())
+            for _, row in df.iterrows():
+                client_key = self._get_client_aggregation_key(row)
+                all_client_keys.add(client_key)
         
         # Создание базового DataFrame с клиентами
-        clients_base = pd.DataFrame({'client_id': list(all_client_ids)})
+        clients_base = pd.DataFrame({'client_key': list(all_client_keys)})
         
         # Добавление данных по каждому периоду
         for i, (period_key, df) in enumerate(self.data_frames.items()):
             period_num = i + 1
             
-            # Создание словаря для маппинга клиент -> данные
-            # Суммируем все показатели по каждому клиенту
-            period_data = df.groupby('client_id').agg({
+            # Создание словаря для маппинга клиент -> данные с учетом агрегации
+            period_data_list = []
+            
+            for _, row in df.iterrows():
+                client_key = self._get_client_aggregation_key(row)
+                period_data_list.append({
+                    'client_key': client_key,
+                    'client_id': row['client_id'],
+                    'tab_number': row['tab_number'],
+                    'fio': row['fio'],
+                    'tb': row['tb'],
+                    'gosb': row['gosb'],
+                    'client_name': row['client_name'],
+                    'value': row['value']
+                })
+            
+            # Группировка по ключу агрегации и суммирование
+            period_df = pd.DataFrame(period_data_list)
+            period_data = period_df.groupby('client_key').agg({
+                'client_id': 'first',
                 'tab_number': 'first',
                 'fio': 'first',
                 'tb': 'first',
                 'gosb': 'first',
                 'client_name': 'first',
-                'value': 'sum'  # Суммируем все значения по клиенту
+                'value': 'sum'  # Суммируем все значения по ключу агрегации
             }).reset_index()
             
             # Добавление колонок с данными периода
             clients_base = clients_base.merge(
-                period_data[['client_id', 'tab_number', 'fio', 'tb', 'gosb', 'client_name', 'value']],
-                on='client_id',
+                period_data[['client_key', 'client_id', 'tab_number', 'fio', 'tb', 'gosb', 'client_name', 'value']],
+                on='client_key',
                 how='left',
                 suffixes=('', f'_period_{period_num}')
             )
@@ -335,13 +356,37 @@ class PeriodComparison:
         clients_base['final_tb'] = ''
         clients_base['final_gosb'] = ''
         
-        # Логика выбора итогового табельного: приоритет последним периодам
+        # Логика выбора итогового табельного с учетом правил агрегации
         for i in range(self.file_count, 0, -1):
             mask = (clients_base[f'tab_number_period_{i}'] != 0) & (clients_base['final_tab_number'] == 0)
-            clients_base.loc[mask, 'final_tab_number'] = clients_base.loc[mask, f'tab_number_period_{i}']
-            clients_base.loc[mask, 'final_fio'] = clients_base.loc[mask, f'fio_period_{i}']
-            clients_base.loc[mask, 'final_tb'] = clients_base.loc[mask, f'tb_period_{i}']
-            clients_base.loc[mask, 'final_gosb'] = clients_base.loc[mask, f'gosb_period_{i}']
+            
+            # Применяем правила выбора менеджера
+            for idx in clients_base[mask].index:
+                row = clients_base.loc[idx]
+                client_aggregation_mode = self.aggregation_rules.get('client_aggregation_mode', 1)
+                
+                # Выбираем менеджера с наибольшим показателем в соответствии с правилами агрегации
+                best_manager = None
+                best_value = 0
+                
+                # Ищем менеджера с наибольшим показателем
+                for j in range(1, self.file_count + 1):
+                    if (row[f'tab_number_period_{j}'] != 0 and 
+                        row[f'value_period_{j}'] > best_value):
+                        
+                        # Проверяем соответствие правилам агрегации
+                        if self._check_manager_client_match(row, j, client_aggregation_mode):
+                            best_manager = j
+                            best_value = row[f'value_period_{j}']
+                
+                if best_manager:
+                    clients_base.loc[idx, 'final_tab_number'] = row[f'tab_number_period_{best_manager}']
+                    clients_base.loc[idx, 'final_fio'] = row[f'fio_period_{best_manager}']
+                    clients_base.loc[idx, 'final_tb'] = row[f'tb_period_{best_manager}']
+                    clients_base.loc[idx, 'final_gosb'] = row[f'gosb_period_{best_manager}']
+        
+        # Обработка серой зоны и прочих данных
+        self._process_special_zones(clients_base)
         
         # Для итогового табельного номера 90000000 устанавливаем "-" в ТБ и ГОСБ
         mask_final_90000000 = clients_base['final_tab_number'] == 90000000
@@ -397,7 +442,14 @@ class PeriodComparison:
         """
         logger.debug("Создание сводки по менеджерам")
         
-        # Группировка по итоговому табельному номеру
+        # Группировка по ключу агрегации менеджеров
+        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        
+        # Создаем ключ агрегации для менеджеров
+        clients_base['manager_key'] = clients_base.apply(
+            lambda row: self._get_manager_aggregation_key_from_final(row), axis=1
+        )
+        
         agg_dict = {
             'final_fio': 'first',
             'final_tb': 'first',
@@ -411,11 +463,10 @@ class PeriodComparison:
         if self.file_count == 3:
             agg_dict['value_period_3'] = 'sum'
         
-        managers_summary = clients_base.groupby('final_tab_number').agg(agg_dict).reset_index()
+        managers_summary = clients_base.groupby('manager_key').agg(agg_dict).reset_index()
         
         # Переименование колонок для соответствия выходному формату
         rename_dict = {
-            'final_tab_number': 'tab_number',
             'final_fio': 'fio',
             'final_tb': 'tb',
             'final_gosb': 'gosb',
@@ -429,6 +480,11 @@ class PeriodComparison:
             rename_dict['value_period_3'] = 'value_3'
         
         managers_summary = managers_summary.rename(columns=rename_dict)
+        
+        # Добавляем колонку tab_number из manager_key
+        managers_summary['tab_number'] = managers_summary['manager_key'].apply(
+            lambda x: int(x.split('_')[0]) if '_' in x else int(x)
+        )
         
         # Удаление колонки value_3 если только 2 периода
         if self.file_count == 2:
@@ -793,6 +849,380 @@ class PeriodComparison:
             
         except Exception as e:
             logger.log_error(f"Ошибка применения автофильтра и закрепления: {str(e)}")
+    
+    def _get_client_aggregation_key(self, row) -> str:
+        """
+        Получение ключа агрегации для клиента в зависимости от режима
+        
+        Args:
+            row: Строка данных
+            
+        Returns:
+            str: Ключ агрегации
+        """
+        client_aggregation_mode = self.aggregation_rules.get('client_aggregation_mode', 1)
+        
+        if client_aggregation_mode == 1:
+            # Агрегация только по client_id
+            return str(row['client_id'])
+        elif client_aggregation_mode == 2:
+            # Агрегация по client_id + tb
+            return f"{row['client_id']}_{row['tb']}"
+        elif client_aggregation_mode == 3:
+            # Агрегация по client_id + tb + gosb
+            return f"{row['client_id']}_{row['tb']}_{row['gosb']}"
+        else:
+            # По умолчанию по client_id
+            return str(row['client_id'])
+    
+    def _get_manager_aggregation_key(self, row) -> str:
+        """
+        Получение ключа агрегации для менеджера в зависимости от режима
+        
+        Args:
+            row: Строка данных
+            
+        Returns:
+            str: Ключ агрегации
+        """
+        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        
+        if manager_aggregation_mode == 1:
+            # Агрегация только по tab_number
+            return str(row['tab_number'])
+        elif manager_aggregation_mode == 2:
+            # Агрегация по tab_number + tb
+            return f"{row['tab_number']}_{row['tb']}"
+        elif manager_aggregation_mode == 3:
+            # Агрегация по tab_number + tb + gosb
+            return f"{row['tab_number']}_{row['tb']}_{row['gosb']}"
+        else:
+            # По умолчанию по tab_number
+            return str(row['tab_number'])
+    
+    def _get_tb_code_from_name(self, tb_name: str) -> int:
+        """
+        Получение кода ТБ по названию
+        
+        Args:
+            tb_name: Название ТБ
+            
+        Returns:
+            int: Код ТБ или 0 если не найден
+        """
+        for tb_code, tb_info in self.tb_gosb_codes['tb_codes'].items():
+            if tb_name in [tb_info['full_name'], tb_info['short_name']]:
+                return tb_code
+        return 0
+    
+    def _get_gosb_code_from_name(self, gosb_name: str, tb_code: int) -> int:
+        """
+        Получение кода ГОСБ по названию и коду ТБ
+        
+        Args:
+            gosb_name: Название ГОСБ
+            tb_code: Код ТБ
+            
+        Returns:
+            int: Код ГОСБ или 0 если не найден
+        """
+        for (tb, gosb), name in self.tb_gosb_codes['gosb_codes'].items():
+            if tb == tb_code and gosb_name in name:
+                return gosb
+        return 0
+    
+    def _generate_grey_zone_tab_number(self, tb_code: int = 0, gosb_code: int = 0) -> int:
+        """
+        Генерация табельного номера для серой зоны
+        
+        Args:
+            tb_code: Код ТБ
+            gosb_code: Код ГОСБ
+            
+        Returns:
+            int: Табельный номер для серой зоны
+        """
+        if tb_code == 0:
+            return 90000000  # Базовая серая зона
+        elif gosb_code == 0:
+            return 90000000 + tb_code * 1000  # 9XX00000
+        else:
+            # 9XXYYYYY где XX - код ТБ, YYYYY - код ГОСБ (до 6 знаков)
+            gosb_padded = str(gosb_code).zfill(6)
+            return int(f"9{tb_code:02d}{gosb_padded}")
+    
+    def _generate_other_tab_number(self, tb_code: int = 0, gosb_code: int = 0) -> int:
+        """
+        Генерация табельного номера для прочих данных
+        
+        Args:
+            tb_code: Код ТБ
+            gosb_code: Код ГОСБ
+            
+        Returns:
+            int: Табельный номер для прочих данных
+        """
+        if tb_code == 0:
+            return 80000000  # Базовая прочая зона
+        elif gosb_code == 0:
+            return 80000000 + tb_code * 1000  # 8XX00000
+        else:
+            # 8XXYYYYY где XX - код ТБ, YYYYY - код ГОСБ (до 6 знаков)
+            gosb_padded = str(gosb_code).zfill(6)
+            return int(f"8{tb_code:02d}{gosb_padded}")
+    
+    def _check_manager_client_match(self, row, period_num: int, client_aggregation_mode: int) -> bool:
+        """
+        Проверка соответствия менеджера и клиента по правилам агрегации
+        
+        Args:
+            row: Строка данных клиента
+            period_num: Номер периода
+            client_aggregation_mode: Режим агрегации клиентов
+            
+        Returns:
+            bool: True если менеджер соответствует клиенту по правилам
+        """
+        if client_aggregation_mode == 1:
+            # Агрегация только по client_id - все менеджеры подходят
+            return True
+        elif client_aggregation_mode == 2:
+            # Агрегация по client_id + tb - проверяем ТБ
+            return row[f'tb_period_{period_num}'] == row['final_tb']
+        elif client_aggregation_mode == 3:
+            # Агрегация по client_id + tb + gosb - проверяем ТБ и ГОСБ
+            return (row[f'tb_period_{period_num}'] == row['final_tb'] and 
+                    row[f'gosb_period_{period_num}'] == row['final_gosb'])
+        else:
+            return True
+    
+    def _get_manager_aggregation_key_from_final(self, row) -> str:
+        """
+        Получение ключа агрегации для менеджера из итоговых данных
+        
+        Args:
+            row: Строка данных
+            
+        Returns:
+            str: Ключ агрегации
+        """
+        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        
+        if manager_aggregation_mode == 1:
+            # Агрегация только по final_tab_number
+            return str(row['final_tab_number'])
+        elif manager_aggregation_mode == 2:
+            # Агрегация по final_tab_number + final_tb
+            return f"{row['final_tab_number']}_{row['final_tb']}"
+        elif manager_aggregation_mode == 3:
+            # Агрегация по final_tab_number + final_tb + final_gosb
+            return f"{row['final_tab_number']}_{row['final_tb']}_{row['final_gosb']}"
+        else:
+            # По умолчанию по final_tab_number
+            return str(row['final_tab_number'])
+    
+    def _process_special_zones(self, clients_base: pd.DataFrame) -> None:
+        """
+        Обработка серой зоны и прочих данных
+        
+        Args:
+            clients_base: База клиентов для обработки
+        """
+        logger.debug("Обработка серой зоны и прочих данных")
+        
+        # Создаем словари для группировки данных по ТБ и ГОСБ
+        tb_groups = {}
+        gosb_groups = {}
+        
+        # Группируем данные по ТБ и ГОСБ
+        for _, row in clients_base.iterrows():
+            tb_name = row['final_tb']
+            gosb_name = row['final_gosb']
+            
+            if tb_name and tb_name != '-':
+                tb_code = self._get_tb_code_from_name(tb_name)
+                if tb_code > 0:
+                    if tb_code not in tb_groups:
+                        tb_groups[tb_code] = []
+                    tb_groups[tb_code].append(row)
+                    
+                    if gosb_name and gosb_name != '-':
+                        gosb_code = self._get_gosb_code_from_name(gosb_name, tb_code)
+                        if gosb_code > 0:
+                            gosb_key = (tb_code, gosb_code)
+                            if gosb_key not in gosb_groups:
+                                gosb_groups[gosb_key] = []
+                            gosb_groups[gosb_key].append(row)
+        
+        # Обрабатываем серую зону (90000000)
+        self._process_grey_zone(clients_base, tb_groups, gosb_groups)
+        
+        # Обрабатываем прочие данные (80000000)
+        self._process_other_zone(clients_base, tb_groups, gosb_groups)
+    
+    def _process_grey_zone(self, clients_base: pd.DataFrame, tb_groups: dict, gosb_groups: dict) -> None:
+        """
+        Обработка серой зоны (90000000)
+        
+        Args:
+            clients_base: База клиентов
+            tb_groups: Группы по ТБ
+            gosb_groups: Группы по ГОСБ
+        """
+        # Базовая серая зона (90000000)
+        grey_zone_data = self._create_special_zone_entry(
+            tab_number=90000000,
+            fio="Серая зона",
+            tb="-",
+            gosb="-",
+            clients_base=clients_base
+        )
+        
+        if grey_zone_data is not None:
+            clients_base.loc[len(clients_base)] = grey_zone_data
+        
+        # Серая зона по ТБ (9XX00000)
+        for tb_code, rows in tb_groups.items():
+            tab_number = self._generate_grey_zone_tab_number(tb_code, 0)
+            tb_name = self.tb_gosb_codes['tb_codes'][tb_code]['short_name']
+            
+            grey_zone_tb_data = self._create_special_zone_entry(
+                tab_number=tab_number,
+                fio=f"Серая зона {tb_name}",
+                tb=tb_name,
+                gosb="-",
+                clients_base=clients_base,
+                filter_rows=rows
+            )
+            
+            if grey_zone_tb_data is not None:
+                clients_base.loc[len(clients_base)] = grey_zone_tb_data
+        
+        # Серая зона по ТБ+ГОСБ (9XXYYYYY)
+        for (tb_code, gosb_code), rows in gosb_groups.items():
+            tab_number = self._generate_grey_zone_tab_number(tb_code, gosb_code)
+            tb_name = self.tb_gosb_codes['tb_codes'][tb_code]['short_name']
+            gosb_name = self.tb_gosb_codes['gosb_codes'][(tb_code, gosb_code)]
+            
+            grey_zone_gosb_data = self._create_special_zone_entry(
+                tab_number=tab_number,
+                fio=f"Серая зона {tb_name} {gosb_name}",
+                tb=tb_name,
+                gosb=gosb_name,
+                clients_base=clients_base,
+                filter_rows=rows
+            )
+            
+            if grey_zone_gosb_data is not None:
+                clients_base.loc[len(clients_base)] = grey_zone_gosb_data
+    
+    def _process_other_zone(self, clients_base: pd.DataFrame, tb_groups: dict, gosb_groups: dict) -> None:
+        """
+        Обработка прочих данных (80000000)
+        
+        Args:
+            clients_base: База клиентов
+            tb_groups: Группы по ТБ
+            gosb_groups: Группы по ГОСБ
+        """
+        # Базовая прочая зона (80000000)
+        other_zone_data = self._create_special_zone_entry(
+            tab_number=80000000,
+            fio="Прочее",
+            tb="-",
+            gosb="-",
+            clients_base=clients_base
+        )
+        
+        if other_zone_data is not None:
+            clients_base.loc[len(clients_base)] = other_zone_data
+        
+        # Прочая зона по ТБ (8XX00000)
+        for tb_code, rows in tb_groups.items():
+            tab_number = self._generate_other_tab_number(tb_code, 0)
+            tb_name = self.tb_gosb_codes['tb_codes'][tb_code]['short_name']
+            
+            other_zone_tb_data = self._create_special_zone_entry(
+                tab_number=tab_number,
+                fio=f"Прочее {tb_name}",
+                tb=tb_name,
+                gosb="-",
+                clients_base=clients_base,
+                filter_rows=rows
+            )
+            
+            if other_zone_tb_data is not None:
+                clients_base.loc[len(clients_base)] = other_zone_tb_data
+        
+        # Прочая зона по ТБ+ГОСБ (8XXYYYYY)
+        for (tb_code, gosb_code), rows in gosb_groups.items():
+            tab_number = self._generate_other_tab_number(tb_code, gosb_code)
+            tb_name = self.tb_gosb_codes['tb_codes'][tb_code]['short_name']
+            gosb_name = self.tb_gosb_codes['gosb_codes'][(tb_code, gosb_code)]
+            
+            other_zone_gosb_data = self._create_special_zone_entry(
+                tab_number=tab_number,
+                fio=f"Прочее {tb_name} {gosb_name}",
+                tb=tb_name,
+                gosb=gosb_name,
+                clients_base=clients_base,
+                filter_rows=rows
+            )
+            
+            if other_zone_gosb_data is not None:
+                clients_base.loc[len(clients_base)] = other_zone_gosb_data
+    
+    def _create_special_zone_entry(self, tab_number: int, fio: str, tb: str, gosb: str, 
+                                 clients_base: pd.DataFrame, filter_rows: list = None) -> dict:
+        """
+        Создание записи для специальной зоны
+        
+        Args:
+            tab_number: Табельный номер
+            fio: ФИО
+            tb: ТБ
+            gosb: ГОСБ
+            clients_base: База клиентов
+            filter_rows: Отфильтрованные строки (опционально)
+            
+        Returns:
+            dict: Данные для записи или None если нет данных
+        """
+        if filter_rows is None:
+            # Берем все строки
+            filtered_data = clients_base
+        else:
+            # Фильтруем по переданным строкам
+            filtered_data = clients_base[clients_base.index.isin([r.name for r in filter_rows])]
+        
+        if len(filtered_data) == 0:
+            return None
+        
+        # Суммируем данные
+        entry = {
+            'client_key': f"special_{tab_number}",
+            'final_tab_number': tab_number,
+            'final_fio': fio,
+            'final_tb': tb,
+            'final_gosb': gosb,
+            'final_client_name': f"Специальная зона {tab_number}"
+        }
+        
+        # Суммируем показатели по периодам
+        for i in range(1, self.file_count + 1):
+            value_col = f'value_period_{i}'
+            if value_col in filtered_data.columns:
+                entry[value_col] = filtered_data[value_col].sum()
+            else:
+                entry[value_col] = 0
+        
+        # Суммируем прирост
+        if 'growth' in filtered_data.columns:
+            entry['growth'] = filtered_data['growth'].sum()
+        else:
+            entry['growth'] = 0
+        
+        return entry
     
     def run_analysis(self) -> None:
         """
