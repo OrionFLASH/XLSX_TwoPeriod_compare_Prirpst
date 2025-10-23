@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import random
 from typing import List, Tuple
-from config import TEST_DATA_CONFIG, IN_XLSX_DIR
+from config import TEST_DATA_CONFIG, IN_XLSX_DIR, TB_GOSB_CODES
 from logger import logger
 
 
@@ -32,10 +32,35 @@ class TestDataGenerator:
         self.manager_change_rate = self.config['manager_change_rate']
         self.value_increase_rate = self.config['value_increase_rate']
         
+        # Получаем реальные коды ТБ и ГОСБ
+        self.tb_codes = list(TB_GOSB_CODES['tb_codes'].keys())
+        self.gosb_codes = list(TB_GOSB_CODES['gosb_codes'].keys())
+        
+        # Создаем веса для пропорционального распределения
+        self._create_distribution_weights()
+        
         # Генерация базовых данных
         self._generate_base_data()
         
         logger.debug("Генератор тестовых данных инициализирован")
+    
+    def _create_distribution_weights(self) -> None:
+        """
+        Создание весов для пропорционального распределения клиентов и КМ по ТБ и ГОСБ
+        """
+        # Создаем веса для ТБ (пропорционально количеству ГОСБ в каждом ТБ)
+        self.tb_weights = {}
+        for tb_code in self.tb_codes:
+            # Подсчитываем количество ГОСБ для каждого ТБ
+            gosb_count = sum(1 for (tb, gosb) in self.gosb_codes if tb == tb_code)
+            self.tb_weights[tb_code] = max(1, gosb_count)  # Минимум 1 для каждого ТБ
+        
+        # Создаем веса для ГОСБ (равномерно внутри каждого ТБ)
+        self.gosb_weights = {}
+        for (tb_code, gosb_code) in self.gosb_codes:
+            self.gosb_weights[(tb_code, gosb_code)] = 1
+        
+        logger.debug(f"Созданы веса для {len(self.tb_weights)} ТБ и {len(self.gosb_weights)} ГОСБ")
     
     def _generate_base_data(self) -> None:
         """
@@ -44,14 +69,26 @@ class TestDataGenerator:
         """
         logger.debug("Генерация базовых данных")
         
-        # Генерация списка менеджеров
+        # Генерация списка менеджеров с реальными кодами ТБ и ГОСБ
         self.managers = []
         for i in range(self.managers_count):
+            # Выбираем ТБ и ГОСБ с учетом весов
+            tb_code = self._select_weighted_tb()
+            gosb_code = self._select_weighted_gosb(tb_code)
+            
+            # Получаем название ГОСБ, если оно существует
+            gosb_name = ""
+            if (tb_code, gosb_code) in TB_GOSB_CODES['gosb_codes']:
+                gosb_name = TB_GOSB_CODES['gosb_codes'][(tb_code, gosb_code)]
+            else:
+                # Если ГОСБ не найден, используем пустое значение
+                gosb_name = ""
+            
             manager = {
                 'tab_number': str(i + 1).zfill(8),  # 8 знаков с лидирующими нулями
                 'fio': f"Менеджер_{i+1:04d}",
-                'tb': f"ТБ_{random.randint(1, self.tb_count):02d}",
-                'gosb': f"ГОСБ_{random.randint(1, random.randint(*self.gosb_per_tb_range)):02d}"
+                'tb': TB_GOSB_CODES['tb_codes'][tb_code]['short_name'],
+                'gosb': gosb_name
             }
             self.managers.append(manager)
         
@@ -65,6 +102,43 @@ class TestDataGenerator:
             self.clients.append(client)
         
         logger.debug(f"Сгенерировано {len(self.managers)} менеджеров и {len(self.clients)} клиентов")
+    
+    def _select_weighted_tb(self) -> int:
+        """
+        Выбор ТБ с учетом весов для пропорционального распределения
+        
+        Returns:
+            int: Код выбранного ТБ
+        """
+        tb_codes = list(self.tb_weights.keys())
+        weights = list(self.tb_weights.values())
+        
+        # Нормализуем веса
+        total_weight = sum(weights)
+        normalized_weights = [w / total_weight for w in weights]
+        
+        return int(np.random.choice(tb_codes, p=normalized_weights))
+    
+    def _select_weighted_gosb(self, tb_code: int) -> int:
+        """
+        Выбор ГОСБ для заданного ТБ с учетом весов
+        
+        Args:
+            tb_code: Код ТБ
+            
+        Returns:
+            int: Код выбранного ГОСБ
+        """
+        # Получаем все ГОСБ для данного ТБ
+        available_gosb = [(tb, gosb) for (tb, gosb) in self.gosb_codes if tb == tb_code]
+        
+        if available_gosb:
+            # Выбираем случайный ГОСБ из доступных
+            selected_tb, selected_gosb = random.choice(available_gosb)
+            return int(selected_gosb)
+        else:
+            # Если нет ГОСБ для данного ТБ, берем первый доступный ГОСБ
+            return int(self.gosb_codes[0][1])
     
     def _get_random_manager(self) -> dict:
         """

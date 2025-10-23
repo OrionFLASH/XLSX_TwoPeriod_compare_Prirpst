@@ -29,6 +29,7 @@ class PeriodComparison:
         self.output_config = self.config['output']
         self.program_mode = PROGRAM_MODES['mode']
         self.aggregation_rules = self.config.get('aggregation_rules', {})
+        self.field_mapping = self.config.get('field_mapping', {})
         self.tb_gosb_codes = TB_GOSB_CODES
         
         # Словари для хранения данных из каждого файла
@@ -902,7 +903,7 @@ class PeriodComparison:
     
     def _get_tb_code_from_name(self, tb_name: str) -> int:
         """
-        Получение кода ТБ по названию
+        Получение кода ТБ по названию с приоритетом поиска
         
         Args:
             tb_name: Название ТБ
@@ -910,14 +911,35 @@ class PeriodComparison:
         Returns:
             int: Код ТБ или 0 если не найден
         """
+        if not tb_name or tb_name == '-':
+            return 0
+            
+        # Приоритет поиска: код -> короткое имя -> полное имя
         for tb_code, tb_info in self.tb_gosb_codes['tb_codes'].items():
-            if tb_name in [tb_info['full_name'], tb_info['short_name']]:
+            # 1. Сначала ищем по коду (если переданное значение - число)
+            try:
+                if int(tb_name) == tb_code:
+                    return tb_code
+            except (ValueError, TypeError):
+                pass
+            
+            # 2. Затем по короткому имени
+            if tb_name == tb_info['short_name']:
                 return tb_code
+                
+            # 3. Затем по полному имени
+            if tb_name == tb_info['full_name']:
+                return tb_code
+                
+            # 4. Частичное совпадение с полным именем
+            if tb_info['full_name'] and tb_name in tb_info['full_name']:
+                return tb_code
+                
         return 0
     
     def _get_gosb_code_from_name(self, gosb_name: str, tb_code: int) -> int:
         """
-        Получение кода ГОСБ по названию и коду ТБ
+        Получение кода ГОСБ по названию и коду ТБ с приоритетом поиска
         
         Args:
             gosb_name: Название ГОСБ
@@ -926,9 +948,27 @@ class PeriodComparison:
         Returns:
             int: Код ГОСБ или 0 если не найден
         """
+        if not gosb_name or gosb_name == '-':
+            return 0
+            
+        # Приоритет поиска: код -> точное совпадение -> частичное совпадение
         for (tb, gosb), name in self.tb_gosb_codes['gosb_codes'].items():
-            if tb == tb_code and gosb_name in name:
-                return gosb
+            if tb == tb_code:
+                # 1. Сначала ищем по коду (если переданное значение - число)
+                try:
+                    if int(gosb_name) == gosb:
+                        return gosb
+                except (ValueError, TypeError):
+                    pass
+                
+                # 2. Затем точное совпадение с названием
+                if gosb_name == name:
+                    return gosb
+                    
+                # 3. Затем частичное совпадение
+                if gosb_name in name:
+                    return gosb
+                    
         return 0
     
     def _generate_grey_zone_tab_number(self, tb_code: int = 0, gosb_code: int = 0) -> int:
