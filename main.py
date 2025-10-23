@@ -35,6 +35,82 @@ class PeriodComparison:
         
         logger.debug(f"Инициализация с количеством файлов: {self.file_count}")
     
+    def _validate_tab_number(self, value) -> int:
+        """
+        Валидация и очистка табельного номера
+        Заменяет нечисловые значения (gray_zone, -, и др.) на 90000000
+        
+        Args:
+            value: Значение для валидации
+            
+        Returns:
+            int: Валидный табельный номер
+        """
+        try:
+            # Преобразуем в строку и очищаем от лишних символов (включая апострофы)
+            str_value = str(value).strip().replace("'", "")
+            
+            # Проверяем на специальные случаи
+            if str_value.lower() in ['grey_zone', 'grey zone', 'greyzone']:
+                logger.debug(f"Найдено значение 'grey_zone' в табельном номере, заменяем на 90000000")
+                return 90000000
+            
+            if str_value in ['-', '', 'nan', 'None', 'null']:
+                logger.debug(f"Найдено пустое или некорректное значение в табельном номере, заменяем на 90000000")
+                return 90000000
+            
+            # Пытаемся преобразовать в число
+            numeric_value = float(str_value)
+            
+            # Проверяем, что это целое число и положительное
+            if numeric_value.is_integer() and numeric_value >= 0:
+                return int(numeric_value)
+            else:
+                logger.debug(f"Табельный номер {value} не является положительным целым числом, заменяем на 90000000")
+                return 90000000
+                
+        except (ValueError, TypeError):
+            logger.debug(f"Не удалось преобразовать табельный номер '{value}' в число, заменяем на 90000000")
+            return 90000000
+    
+    def _validate_value(self, value) -> float:
+        """
+        Валидация и очистка показателя
+        Заменяет нечисловые и пустые значения на 0
+        
+        Args:
+            value: Значение для валидации
+            
+        Returns:
+            float: Валидное числовое значение
+        """
+        try:
+            # Проверяем на пустые значения
+            if pd.isna(value) or value is None:
+                logger.debug(f"Найдено пустое значение в показателе, заменяем на 0")
+                return 0.0
+            
+            # Преобразуем в строку и очищаем
+            str_value = str(value).strip()
+            
+            if str_value in ['', '-', 'nan', 'None', 'null']:
+                logger.debug(f"Найдено некорректное значение в показателе, заменяем на 0")
+                return 0.0
+            
+            # Пытаемся преобразовать в число
+            numeric_value = float(str_value)
+            
+            # Проверяем на бесконечность и NaN
+            if pd.isna(numeric_value) or not np.isfinite(numeric_value):
+                logger.debug(f"Показатель {value} содержит NaN или бесконечность, заменяем на 0")
+                return 0.0
+            
+            return numeric_value
+            
+        except (ValueError, TypeError):
+            logger.debug(f"Не удалось преобразовать показатель '{value}' в число, заменяем на 0")
+            return 0.0
+
     def load_excel_file(self, file_path: str, sheet_name: str, columns: Dict[str, str]) -> pd.DataFrame:
         """
         Загрузка данных из Excel файла
@@ -75,18 +151,45 @@ class PeriodComparison:
             else:
                 logger.debug("Нет колонок для очистки от пустых значений")
             
-            # Преобразование типов данных (после переименования)
+            # Валидация и очистка данных (после переименования)
+            logger.debug("Начинаем валидацию и очистку данных")
+            
+            # Валидация табельных номеров
             if 'tab_number' in df.columns:
-                # Обработка табельных номеров с апострофами
+                logger.debug("Валидация табельных номеров")
+                original_tab_count = len(df)
+                original_invalid_tab = df['tab_number'].isna().sum() + (df['tab_number'].astype(str).str.strip().isin(['', '-', 'nan', 'None', 'null'])).sum()
+                
+                # Применяем валидацию к табельным номерам
+                df['tab_number'] = df['tab_number'].apply(self._validate_tab_number)
+                
+                # Обработка табельных номеров с апострофами (после валидации)
                 df['tab_number'] = df['tab_number'].astype(str).str.replace("'", "").str.zfill(8)
-                logger.debug(f"Обработаны табельные номера: {df['tab_number'].nunique()} уникальных")
+                
+                logger.debug(f"Валидация табельных номеров завершена: {df['tab_number'].nunique()} уникальных")
+                if original_invalid_tab > 0:
+                    logger.info(f"Заменено {original_invalid_tab} некорректных табельных номеров на 90000000")
+            
+            # Валидация ID клиентов
             if 'client_id' in df.columns:
+                logger.debug("Обработка ID клиентов")
                 # Обработка ID клиентов с апострофами
                 df['client_id'] = df['client_id'].astype(str).str.replace("'", "").str.zfill(20)
                 logger.debug(f"Обработаны ID клиентов: {df['client_id'].nunique()} уникальных")
+            
+            # Валидация показателей
             if 'value' in df.columns:
-                df['value'] = pd.to_numeric(df['value'], errors='coerce').fillna(0)
-                logger.debug(f"Обработаны значения: среднее = {df['value'].mean():.2f}, сумма = {df['value'].sum():.2f}")
+                logger.debug("Валидация показателей")
+                original_invalid_values = df['value'].isna().sum() + (df['value'].astype(str).str.strip().isin(['', '-', 'nan', 'None', 'null'])).sum()
+                
+                # Применяем валидацию к показателям
+                df['value'] = df['value'].apply(self._validate_value)
+                
+                logger.debug(f"Валидация показателей завершена: среднее = {df['value'].mean():.2f}, сумма = {df['value'].sum():.2f}")
+                if original_invalid_values > 0:
+                    logger.info(f"Заменено {original_invalid_values} некорректных показателей на 0")
+            
+            logger.debug("Валидация и очистка данных завершена")
             
             logger.log_file_loaded(file_path)
             logger.log_file_data_processed(file_path, len(df))

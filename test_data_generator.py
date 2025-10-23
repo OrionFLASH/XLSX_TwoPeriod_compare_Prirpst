@@ -124,7 +124,7 @@ class TestDataGenerator:
         
         data = []
         
-        for client in self.clients:
+        for i, client in enumerate(self.clients):
             # Получение менеджера для клиента
             if period == 1:
                 # В первом периоде случайный менеджер
@@ -145,15 +145,35 @@ class TestDataGenerator:
                 base_value = self._generate_value()
                 value = self._generate_value(base_value)
             
+            # Добавление некорректных данных для тестирования валидации
+            tab_number = f"'{manager['tab_number']}"
+            client_id = f"'{client['client_id']}"
+            value_to_use = round(value, 2)
+            
+            # Добавляем некорректные значения для тестирования валидации
+            if i % 10 == 0:  # Каждый 10-й клиент получает некорректные данные
+                if i % 30 == 0:  # grey_zone
+                    tab_number = "grey_zone"
+                elif i % 30 == 10:  # пустое значение
+                    tab_number = ""
+                elif i % 30 == 20:  # дефис
+                    tab_number = "-"
+                
+                if i % 20 == 0:  # Некорректные показатели
+                    if i % 40 == 0:  # пустое значение
+                        value_to_use = ""
+                    elif i % 40 == 20:  # дефис
+                        value_to_use = "-"
+            
             # Создание записи
             record = {
-                'Таб. номер': f"'{manager['tab_number']}",  # Добавляем апостроф для сохранения как текст
+                'Таб. номер': tab_number,
                 'Фамилия': manager['fio'],
                 'коротко ТБ': manager['tb'],
                 'короткое наименование ГОСБ': manager['gosb'],
-                'ЕПК ИД': f"'{client['client_id']}",  # Добавляем апостроф для сохранения как текст
+                'ЕПК ИД': client_id,
                 'Наименование клиента': client['client_name'],
-                'СДО руб': round(value, 2)
+                'СДО руб': value_to_use
             }
             
             data.append(record)
