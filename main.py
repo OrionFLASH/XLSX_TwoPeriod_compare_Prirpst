@@ -7,7 +7,7 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple, Optional
-from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG, IN_XLSX_DIR
+from config import ANALYSIS_CONFIG, TEST_DATA_CONFIG, PROGRAM_MODES, IN_XLSX_DIR
 from logger import logger
 from test_data_generator import create_test_data
 
@@ -27,6 +27,7 @@ class PeriodComparison:
         self.file_count = self.config['file_count']
         self.files_config = self.config['files']
         self.output_config = self.config['output']
+        self.program_mode = PROGRAM_MODES['mode']
         
         # Словари для хранения данных из каждого файла
         self.data_frames = {}
@@ -34,6 +35,40 @@ class PeriodComparison:
         self.managers_data = {}
         
         logger.debug(f"Инициализация с количеством файлов: {self.file_count}")
+    
+    def _get_files_for_mode(self):
+        """
+        Определяет какие файлы использовать в зависимости от режима работы
+        
+        Returns:
+            list: Список файлов для обработки
+        """
+        if self.program_mode in [2, 4]:  # Режимы работы с тестовыми данными
+            # Используем тестовые файлы
+            from config import TEST_DATA_CONFIG
+            test_files = TEST_DATA_CONFIG['test_files']
+            files_to_use = []
+            
+            for i in range(self.file_count):
+                file_config = {
+                    'path': str(IN_XLSX_DIR / test_files[i]),
+                    'sheet_name': 'Sheet1',
+                    'columns': {
+                        'Таб. номер': 'tab_number',
+                        'КМ': 'fio',
+                        'ТБ': 'tb',
+                        'ГОСБ': 'gosb',
+                        'ИНН': 'client_id',
+                        'Клиент': 'client_name',
+                        'ФОТ': 'value'
+                    }
+                }
+                files_to_use.append(file_config)
+            
+            return files_to_use
+        else:  # Режимы работы с обычными данными
+            # Используем основные файлы из конфигурации
+            return self.files_config[:self.file_count]
     
     def _validate_tab_number(self, value) -> int:
         """
@@ -212,7 +247,10 @@ class PeriodComparison:
         """
         logger.debug("Начало загрузки всех файлов")
         
-        for i, file_config in enumerate(self.files_config[:self.file_count]):
+        # Получаем файлы в зависимости от режима работы
+        files_to_load = self._get_files_for_mode()
+        
+        for i, file_config in enumerate(files_to_load):
             try:
                 df = self.load_excel_file(
                     file_config['path'],
@@ -759,38 +797,106 @@ class PeriodComparison:
     def run_analysis(self) -> None:
         """
         Основной метод для запуска анализа
-        Выполняет полный цикл обработки данных
+        Выполняет полный цикл обработки данных в зависимости от режима
         """
         try:
             logger.log_analysis_start()
             
-            # Загрузка всех файлов
-            self.load_all_files()
+            # Режим 1: Просто сгенерировать тест данные
+            if self.program_mode == 1:
+                logger.info("Режим 1: Генерация тестовых данных")
+                self._generate_test_data_only()
+                return
             
-            # Создание базы клиентов
-            clients_base = self.create_clients_base()
-            logger.log_clients_base_created(len(clients_base))
+            # Режим 2: Посчитать на тест данных
+            elif self.program_mode == 2:
+                logger.info("Режим 2: Анализ тестовых данных")
+                self._run_analysis_on_test_data()
+                return
             
-            # Расчет приростов
-            clients_base = self.calculate_growth(clients_base)
-            logger.log_growth_calculated(len(clients_base))
+            # Режим 3: Посчитать на обычных данных
+            elif self.program_mode == 3:
+                logger.info("Режим 3: Анализ обычных данных")
+                self._run_analysis_on_normal_data()
+                return
             
-            # Создание сводки по менеджерам
-            managers_summary = self.create_managers_summary(clients_base)
-            logger.log_managers_summary_created(len(managers_summary))
+            # Режим 4: Сгенерировать и посчитать на тест данных сразу
+            elif self.program_mode == 4:
+                logger.info("Режим 4: Генерация и анализ тестовых данных")
+                self._generate_and_analyze_test_data()
+                return
             
-            # Создание сводки по менеджерам по дате сделки
-            managers_deal_date_summary = self.create_managers_deal_date_summary(clients_base)
-            logger.log_managers_deal_date_created(len(managers_deal_date_summary))
-            
-            # Создание выходного файла
-            self.create_output_file(clients_base, managers_summary, managers_deal_date_summary)
-            
-            logger.log_analysis_complete()
-            
+            else:
+                raise ValueError(f"Неподдерживаемый режим работы: {self.program_mode}")
+                
         except Exception as e:
             logger.log_error(f"Ошибка в процессе анализа: {str(e)}")
             raise
+    
+    def _generate_test_data_only(self) -> None:
+        """Режим 1: Просто сгенерировать тест данные"""
+        from test_data_generator import TestDataGenerator
+        generator = TestDataGenerator()
+        generator.create_test_files()
+        logger.info("Тестовые данные сгенерированы успешно")
+    
+    def _run_analysis_on_test_data(self) -> None:
+        """Режим 2: Посчитать на тест данных"""
+        # Загрузка всех файлов
+        self.load_all_files()
+        
+        # Создание базы клиентов
+        clients_base = self.create_clients_base()
+        logger.log_clients_base_created(len(clients_base))
+        
+        # Расчет приростов
+        clients_base = self.calculate_growth(clients_base)
+        logger.log_growth_calculated(len(clients_base))
+        
+        # Создание сводки по менеджерам
+        managers_summary = self.create_managers_summary(clients_base)
+        logger.log_managers_summary_created(len(managers_summary))
+        
+        # Создание сводки по менеджерам по дате сделки
+        managers_deal_date_summary = self.create_managers_deal_date_summary(clients_base)
+        logger.log_managers_deal_date_created(len(managers_deal_date_summary))
+        
+        # Создание выходного файла
+        self.create_output_file(clients_base, managers_summary, managers_deal_date_summary)
+        logger.log_analysis_complete()
+    
+    def _run_analysis_on_normal_data(self) -> None:
+        """Режим 3: Посчитать на обычных данных"""
+        # Загрузка всех файлов
+        self.load_all_files()
+        
+        # Создание базы клиентов
+        clients_base = self.create_clients_base()
+        logger.log_clients_base_created(len(clients_base))
+        
+        # Расчет приростов
+        clients_base = self.calculate_growth(clients_base)
+        logger.log_growth_calculated(len(clients_base))
+        
+        # Создание сводки по менеджерам
+        managers_summary = self.create_managers_summary(clients_base)
+        logger.log_managers_summary_created(len(managers_summary))
+        
+        # Создание сводки по менеджерам по дате сделки
+        managers_deal_date_summary = self.create_managers_deal_date_summary(clients_base)
+        logger.log_managers_deal_date_created(len(managers_deal_date_summary))
+        
+        # Создание выходного файла
+        self.create_output_file(clients_base, managers_summary, managers_deal_date_summary)
+        logger.log_analysis_complete()
+    
+    def _generate_and_analyze_test_data(self) -> None:
+        """Режим 4: Сгенерировать и посчитать на тест данных сразу"""
+        # Сначала генерируем тестовые данные
+        self._generate_test_data_only()
+        
+        # Затем анализируем их
+        self._run_analysis_on_test_data()
 
 
 def check_and_create_test_data():

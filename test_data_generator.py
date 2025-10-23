@@ -198,12 +198,16 @@ class TestDataGenerator:
                 df = self.generate_period_data(period)
                 
                 # Создание имени файла в каталоге IN_XLSX
+                # Используем тестовые имена файлов из конфигурации
+                from config import TEST_DATA_CONFIG
+                test_files = TEST_DATA_CONFIG['test_files']
+                
                 if period == 1:
-                    filename = IN_XLSX_DIR / "QS ФОТ (30-06-2025).xlsx"  # T-0 (текущий)
+                    filename = IN_XLSX_DIR / test_files[0]  # test_period1.xlsx
                 elif period == 2:
-                    filename = IN_XLSX_DIR / "QS ФОТ (31-05-2025).xlsx"  # T-1 (прошлый)
+                    filename = IN_XLSX_DIR / test_files[1]  # test_period2.xlsx
                 else:
-                    filename = IN_XLSX_DIR / "QS ФОТ (30-04-2025).xlsx"  # T-2 (позапрошлый)
+                    filename = IN_XLSX_DIR / test_files[2]  # test_period3.xlsx
                 
                 # Сохранение в Excel файл
                 with pd.ExcelWriter(filename, engine='openpyxl') as writer:
