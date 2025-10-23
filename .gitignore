@@ -34,6 +34,7 @@ IN_XLSX/
 OUT_XLSX/
 LOGS/
 Source/
+Docs/
 
 # Excel файлы (кроме тестовых)
 *.xlsx
