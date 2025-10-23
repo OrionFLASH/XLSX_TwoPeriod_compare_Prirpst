@@ -199,11 +199,11 @@ class TestDataGenerator:
                 
                 # Создание имени файла в каталоге IN_XLSX
                 if period == 1:
-                    filename = IN_XLSX_DIR / "QS ФОТ (30-04-2025).xlsx"
+                    filename = IN_XLSX_DIR / "QS ФОТ (30-06-2025).xlsx"  # T-0 (текущий)
                 elif period == 2:
-                    filename = IN_XLSX_DIR / "QS ФОТ (31-05-2025).xlsx"
+                    filename = IN_XLSX_DIR / "QS ФОТ (31-05-2025).xlsx"  # T-1 (прошлый)
                 else:
-                    filename = IN_XLSX_DIR / "QS ФОТ (30-06-2025).xlsx"
+                    filename = IN_XLSX_DIR / "QS ФОТ (30-04-2025).xlsx"  # T-2 (позапрошлый)
                 
                 # Сохранение в Excel файл
                 with pd.ExcelWriter(filename, engine='openpyxl') as writer:

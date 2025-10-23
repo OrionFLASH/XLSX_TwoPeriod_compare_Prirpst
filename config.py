@@ -40,7 +40,7 @@ ANALYSIS_CONFIG = {
     # Настройки файлов
     'files': [
         {
-            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-04-2025).xlsx'),
+            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-06-2025).xlsx'),
             'sheet_name': 'Sheet1',
             'columns': {
                 'Таб. номер': 'tab_number',
@@ -66,7 +66,7 @@ ANALYSIS_CONFIG = {
             }
         },
         {
-            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-06-2025).xlsx'),
+            'path': str(IN_XLSX_DIR / 'QS ФОТ (30-04-2025).xlsx'),
             'sheet_name': 'Sheet1',
             'columns': {
                 'Таб. номер': 'tab_number',
