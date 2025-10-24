@@ -25,11 +25,13 @@ class TestDataGenerator:
         """
         self.config = TEST_DATA_CONFIG
         self.clients_count = self.config['clients_count']
-        self.managers_count = self.config['managers_count']
-        self.tb_count = self.config['tb_count']
-        self.gosb_per_tb_range = self.config['gosb_per_tb']
+        self.managers_count_min = self.config['managers_count_min']
+        self.managers_count_max = self.config['managers_count_max']
+        self.tb_codes = self.config['tb_codes']
+        self.managers_per_gosb_min = self.config['managers_per_gosb_min']
+        self.managers_per_gosb_max = self.config['managers_per_gosb_max']
         self.value_range = self.config['value_range']
-        self.manager_change_rate = self.config['manager_change_rate']
+        self.managers_change_rate = self.config['managers_change_rate']
         self.value_increase_rate = self.config['value_increase_rate']
         
         # Получаем реальные коды ТБ и ГОСБ
@@ -62,6 +64,18 @@ class TestDataGenerator:
         
         logger.debug(f"Созданы веса для {len(self.tb_weights)} ТБ и {len(self.gosb_weights)} ГОСБ")
     
+    def _generate_manager_fio(self) -> str:
+        """
+        Генерация ФИО менеджера из списков имен, фамилий и отчеств
+        """
+        import random
+        
+        first_name = random.choice(self.config['manager_names']['first_names'])
+        last_name = random.choice(self.config['manager_names']['last_names'])
+        middle_name = random.choice(self.config['manager_names']['middle_names'])
+        
+        return f"{last_name} {first_name} {middle_name}"
+    
     def _generate_base_data(self) -> None:
         """
         Генерация базовых данных для тестирования
@@ -71,26 +85,60 @@ class TestDataGenerator:
         
         # Генерация списка менеджеров с реальными кодами ТБ и ГОСБ
         self.managers = []
-        for i in range(self.managers_count):
-            # Выбираем ТБ и ГОСБ с учетом весов
-            tb_code = self._select_weighted_tb()
-            gosb_code = self._select_weighted_gosb(tb_code)
-            
-            # Получаем название ГОСБ, если оно существует
-            gosb_name = ""
-            if (tb_code, gosb_code) in TB_GOSB_CODES['gosb_codes']:
-                gosb_name = TB_GOSB_CODES['gosb_codes'][(tb_code, gosb_code)]
+        
+        # Создаем список всех доступных ГОСБ
+        available_gosb = []
+        for (tb_code, gosb_code) in self.gosb_codes:
+            gosb_name = TB_GOSB_CODES['gosb_codes'].get((tb_code, gosb_code), "")
+            available_gosb.append({
+                'tb_code': tb_code,
+                'gosb_code': gosb_code,
+                'gosb_name': gosb_name,
+                'tb_name': TB_GOSB_CODES['tb_codes'][tb_code]['short_name']
+            })
+        
+        # Распределяем менеджеров по ГОСБ (5-18 менеджеров в каждом ГОСБ)
+        import random
+        manager_id = 1
+        
+        # Случайно выбираем ГОСБ для распределения менеджеров
+        # Убеждаемся, что общее количество менеджеров попадает в диапазон 1500-1600
+        total_managers_needed = random.randint(self.managers_count_min, self.managers_count_max)
+        managers_created = 0
+        
+        # Перемешиваем ГОСБ для случайного распределения
+        random.shuffle(available_gosb)
+        
+        # Сначала заполняем до минимума, затем добавляем до максимума
+        for gosb_info in available_gosb:
+            if managers_created >= total_managers_needed:
+                break
+                
+            # Случайное количество менеджеров в ГОСБ (5-18)
+            remaining_needed = total_managers_needed - managers_created
+            if remaining_needed <= 0:
+                break
+                
+            # Если осталось мало менеджеров, добавляем их в текущий ГОСБ
+            if remaining_needed < self.managers_per_gosb_min:
+                managers_in_gosb = remaining_needed
             else:
-                # Если ГОСБ не найден, используем пустое значение
-                gosb_name = ""
+                max_in_gosb = min(self.managers_per_gosb_max, remaining_needed)
+                managers_in_gosb = random.randint(self.managers_per_gosb_min, max_in_gosb)
             
-            manager = {
-                'tab_number': str(i + 1).zfill(8),  # 8 знаков с лидирующими нулями
-                'fio': f"Менеджер_{i+1:04d}",
-                'tb': TB_GOSB_CODES['tb_codes'][tb_code]['short_name'],
-                'gosb': gosb_name
-            }
-            self.managers.append(manager)
+            for i in range(managers_in_gosb):
+                # Генерируем ФИО менеджера
+                fio = self._generate_manager_fio()
+                
+                manager = {
+                    'tab_number': str(manager_id).zfill(8),  # 8 знаков с лидирующими нулями
+                    'fio': fio,
+                    'tb': gosb_info['tb_name'],
+                    'gosb': gosb_info['gosb_name']
+                }
+                self.managers.append(manager)
+                manager_id += 1
+                managers_created += 1
         
         # Генерация списка клиентов
         self.clients = []
@@ -182,7 +230,7 @@ class TestDataGenerator:
         Returns:
             bool: True если менеджер должен смениться
         """
-        return random.random() < self.manager_change_rate
+        return random.random() < self.managers_change_rate
     
     def generate_period_data(self, period: int) -> pd.DataFrame:
         """
@@ -258,7 +306,7 @@ class TestDataGenerator:
         logger.debug(f"Сгенерировано {len(df)} записей для периода {period}")
         return df
     
-    def create_test_files(self) -> None:
+    def create_test_files(self) -> bool:
         """
         Создание тестовых Excel файлов
         Генерирует файлы для всех периодов согласно конфигурации
@@ -294,6 +342,7 @@ class TestDataGenerator:
             print("- test_data_period1.xlsx")
             print("- test_data_period2.xlsx") 
             print("- test_data_period3.xlsx")
+            return True
             
         except Exception as e:
             error_msg = f"Ошибка создания тестовых файлов: {str(e)}"
