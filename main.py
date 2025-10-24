@@ -1417,12 +1417,13 @@ def main():
     Запускает анализ периодов
     """
     try:
-        # Проверка и создание тестовых данных при необходимости
-        if not check_and_create_test_data():
-            return 1
-        
         # Создание экземпляра класса анализа
         analyzer = PeriodComparison()
+        
+        # Проверка и создание тестовых данных при необходимости (только для режимов 1 и 4)
+        if analyzer.program_mode in [1, 4]:
+            if not check_and_create_test_data():
+                return 1
         
         # Запуск анализа
         analyzer.run_analysis()
