@@ -24,11 +24,12 @@ class PeriodComparison:
         Загружает конфигурацию и настраивает параметры
         """
         self.config = ANALYSIS_CONFIG
-        self.file_count = self.config['file_count']
+        # Определяем количество файлов на основе параметра use_file
+        self.file_count = sum(1 for file_config in self.config['files'] if file_config.get('use_file', True))
         self.files_config = self.config['files']
         self.output_config = self.config['output']
         self.program_mode = PROGRAM_MODES['mode']
-        self.aggregation_rules = self.config.get('aggregation_rules', {})
+        self.aggregation_mode = self.config.get('aggregation_mode', 1)
         self.field_mapping = self.config.get('field_mapping', {})
         self.tb_gosb_codes = TB_GOSB_CODES
         
@@ -70,8 +71,8 @@ class PeriodComparison:
             
             return files_to_use
         else:  # Режимы работы с обычными данными
-            # Используем основные файлы из конфигурации
-            return self.files_config[:self.file_count]
+            # Используем основные файлы из конфигурации (только те, где use_file=True)
+            return [file_config for file_config in self.files_config if file_config.get('use_file', True)]
     
     def _validate_tab_number(self, value) -> int:
         """
@@ -364,7 +365,7 @@ class PeriodComparison:
             # Применяем правила выбора менеджера
             for idx in clients_base[mask].index:
                 row = clients_base.loc[idx]
-                client_aggregation_mode = self.aggregation_rules.get('client_aggregation_mode', 1)
+                client_aggregation_mode = self.aggregation_mode
                 
                 # Выбираем менеджера с наибольшим показателем в соответствии с правилами агрегации
                 best_manager = None
@@ -444,7 +445,7 @@ class PeriodComparison:
         logger.debug("Создание сводки по менеджерам")
         
         # Группировка по ключу агрегации менеджеров
-        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        manager_aggregation_mode = self.aggregation_mode
         
         # Создаем ключ агрегации для менеджеров
         clients_base['manager_key'] = clients_base.apply(
@@ -861,7 +862,7 @@ class PeriodComparison:
         Returns:
             str: Ключ агрегации
         """
-        client_aggregation_mode = self.aggregation_rules.get('client_aggregation_mode', 1)
+        client_aggregation_mode = self.aggregation_mode
         
         if client_aggregation_mode == 1:
             # Агрегация только по client_id
@@ -886,7 +887,7 @@ class PeriodComparison:
         Returns:
             str: Ключ агрегации
         """
-        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        manager_aggregation_mode = self.aggregation_mode
         
         if manager_aggregation_mode == 1:
             # Агрегация только по tab_number
@@ -1046,7 +1047,7 @@ class PeriodComparison:
         Returns:
             str: Ключ агрегации
         """
-        manager_aggregation_mode = self.aggregation_rules.get('manager_aggregation_mode', 1)
+        manager_aggregation_mode = self.aggregation_mode
         
         if manager_aggregation_mode == 1:
             # Агрегация только по final_tab_number
@@ -1373,40 +1374,37 @@ def check_and_create_test_data():
     """
     Проверяет настройку создания тестовых данных и создает их при необходимости
     """
-    if TEST_DATA_CONFIG.get('create_test_data', False):
-        logger.info("Настройка требует создания тестовых данных")
-        
-        # Удаление старых тестовых файлов
-        import os
-        test_files = [
-            IN_XLSX_DIR / 'test_data_period1.xlsx',
-            IN_XLSX_DIR / 'test_data_period2.xlsx', 
-            IN_XLSX_DIR / 'test_data_period3.xlsx'
-        ]
-        
-        deleted_files = []
-        for file_path in test_files:
-            if file_path.exists():
-                file_path.unlink()
-                deleted_files.append(str(file_path))
-                logger.debug(f"Удален старый тестовый файл: {file_path}")
-        
-        if deleted_files:
-            logger.log_test_files_deleted(deleted_files)
-        
-        # Создание новых тестовых данных
-        logger.info("Создание новых тестовых данных...")
-        success = create_test_data()
-        
-        if success:
-            created_files = [str(f) for f in test_files]
-            logger.log_test_files_created(created_files)
-            logger.info("Тестовые данные созданы успешно")
-        else:
-            logger.error("Ошибка создания тестовых данных")
-            return False
+    logger.info("Создание тестовых данных...")
+    
+    # Удаление старых тестовых файлов
+    import os
+    test_files = [
+        IN_XLSX_DIR / 'test_data_period1.xlsx',
+        IN_XLSX_DIR / 'test_data_period2.xlsx', 
+        IN_XLSX_DIR / 'test_data_period3.xlsx'
+    ]
+    
+    deleted_files = []
+    for file_path in test_files:
+        if file_path.exists():
+            file_path.unlink()
+            deleted_files.append(str(file_path))
+            logger.debug(f"Удален старый тестовый файл: {file_path}")
+    
+    if deleted_files:
+        logger.log_test_files_deleted(deleted_files)
+    
+    # Создание новых тестовых данных
+    logger.info("Создание новых тестовых данных...")
+    success = create_test_data()
+    
+    if success:
+        created_files = [str(f) for f in test_files]
+        logger.log_test_files_created(created_files)
+        logger.info("Тестовые данные созданы успешно")
     else:
-        logger.info("Создание тестовых данных отключено в конфигурации")
+        logger.error("Ошибка создания тестовых данных")
+        return False
     
     return True
 

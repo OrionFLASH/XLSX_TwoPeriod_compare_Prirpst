@@ -31,26 +31,15 @@ LOG_CONFIG = {
 
 # Параметры анализа
 ANALYSIS_CONFIG = {
-    # Количество файлов для анализа (2 или 3)
-    'file_count': 2,
     
     # Режим расчета прироста
     'growth_calculation_mode': 'report_date',  # 'report_date' или 'deal_date'
     
     # Правила агрегации данных
-    'aggregation_rules': {
-        # Правила сбора показателей по клиентам
-        'client_aggregation_mode': 1,  # 1-3 варианта
-        # 1 - по client_id
-        # 2 - по client_id + tb  
-        # 3 - по client_id + tb + gosb
-        
-        # Правила сбора данных по менеджерам
-        'manager_aggregation_mode': 1,  # 1-3 варианта
-        # 1 - все клиенты менеджера
-        # 2 - только клиенты с тем же ТБ что и менеджер
-        # 3 - только клиенты с тем же ТБ и ГОСБ что и менеджер
-    },
+    'aggregation_mode': 2,  # 1-3 варианта (используется для клиентов и менеджеров)
+    # 1 - по client_id / все клиенты менеджера
+    # 2 - по client_id + tb / только клиенты с тем же ТБ что и менеджер
+    # 3 - по client_id + tb + gosb / только клиенты с тем же ТБ и ГОСБ что и менеджер
     
     # Настройки полей для поиска соответствий ТБ и ГОСБ
     'field_mapping': {
@@ -71,6 +60,7 @@ ANALYSIS_CONFIG = {
         {
             'path': str(IN_XLSX_DIR / 'QS ФОТ (30-06-2025).xlsx'),
             'sheet_name': 'Sheet1',
+            'use_file': True,  # Использовать файл для анализа
             'columns': {
                 'Таб. номер': 'tab_number',
                 'КМ': 'fio',
@@ -84,6 +74,7 @@ ANALYSIS_CONFIG = {
         {
             'path': str(IN_XLSX_DIR / 'QS ФОТ (31-05-2025).xlsx'),
             'sheet_name': 'Sheet1',
+            'use_file': True,  # Использовать файл для анализа
             'columns': {
                 'Таб. номер': 'tab_number',
                 'КМ': 'fio',
@@ -97,6 +88,7 @@ ANALYSIS_CONFIG = {
         {
             'path': str(IN_XLSX_DIR / 'QS ФОТ (30-04-2025).xlsx'),
             'sheet_name': 'Sheet1',
+            'use_file': False,  # Не использовать файл для анализа (T-2 период)
             'columns': {
                 'Таб. номер': 'tab_number',
                 'КМ': 'fio',
@@ -192,8 +184,6 @@ ANALYSIS_CONFIG = {
 
 # Настройки для создания тестовых данных
 TEST_DATA_CONFIG = {
-    # Основные параметры генерации
-    'create_test_data': True,  # Создавать тестовые данные при запуске (True/False)
     
     # Параметры клиентов
     'clients_count': 25000,  # Общее количество клиентов
