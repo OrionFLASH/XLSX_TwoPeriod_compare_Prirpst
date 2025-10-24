@@ -177,6 +177,30 @@ ANALYSIS_CONFIG = {
                 'val (T-1)': {'type': 'number', 'format': '#,##0.00'},
                 'val (T-2)': {'type': 'number', 'format': '#,##0.00'},
                 'Gain (total)': {'type': 'number', 'format': '#,##0.00'}
+            },
+            'clients_detail': {
+                'ID клиента': {'type': 'text_padded', 'format': '20', 'pad_char': '0'},
+                'Наименование клиента': {'type': 'text'},
+                'Итоговый ТБ': {'type': 'text'},
+                'Итоговый ГОСБ': {'type': 'text'},
+                'Таб. номер (T-0)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'ФИО КМ (T-0)': {'type': 'text'},
+                'ТБ (T-0)': {'type': 'text'},
+                'ГОСБ (T-0)': {'type': 'text'},
+                'Показатель (T-0)': {'type': 'number', 'format': '#,##0.00'},
+                'Таб. номер (T-1)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'ФИО КМ (T-1)': {'type': 'text'},
+                'ТБ (T-1)': {'type': 'text'},
+                'ГОСБ (T-1)': {'type': 'text'},
+                'Показатель (T-1)': {'type': 'number', 'format': '#,##0.00'},
+                'Таб. номер (T-2)': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'ФИО КМ (T-2)': {'type': 'text'},
+                'ТБ (T-2)': {'type': 'text'},
+                'ГОСБ (T-2)': {'type': 'text'},
+                'Показатель (T-2)': {'type': 'number', 'format': '#,##0.00'},
+                'Итоговый таб. номер': {'type': 'text_padded', 'format': '8', 'pad_char': '0'},
+                'Итоговое ФИО КМ': {'type': 'text'},
+                'Итоговый прирост': {'type': 'number', 'format': '#,##0.00'}
             }
         }
     }

@@ -887,7 +887,9 @@ class PeriodComparison:
             # Форматирование листа детализации клиентов
             if 'Детализация клиентов' in wb.sheetnames:
                 clients_detail_sheet = wb['Детализация клиентов']
-                # Применяем базовое форматирование для листа детализации
+                # Применяем форматирование колонок для листа детализации
+                if 'clients_detail' in formatting_config:
+                    self._format_sheet_columns(clients_detail_sheet, formatting_config['clients_detail'])
                 self._apply_autofilter_and_freeze(clients_detail_sheet)
                 # Автоподбор ширины колонок
                 for column in clients_detail_sheet.columns:
