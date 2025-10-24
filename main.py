@@ -112,6 +112,29 @@ class PeriodComparison:
             logger.debug(f"Не удалось преобразовать табельный номер '{value}' в число, заменяем на 90000000")
             return 90000000
     
+    def _is_excluded_tab_number(self, tab_number: int) -> bool:
+        """
+        Проверяет, является ли табельный номер исключенным (8XXYYYYY или 9XXYYYYY)
+        
+        Args:
+            tab_number: Табельный номер для проверки
+            
+        Returns:
+            bool: True если табельный номер должен быть исключен
+        """
+        if tab_number == 0 or tab_number == 90000000:
+            return False
+        
+        # Преобразуем в строку для проверки
+        tab_str = str(tab_number).zfill(8)
+        
+        # Проверяем на паттерны 8XXYYYYY и 9XXYYYYY
+        if len(tab_str) == 8:
+            if tab_str[0] in ['8', '9']:
+                return True
+        
+        return False
+    
     def _validate_value(self, value) -> float:
         """
         Валидация и очистка показателя
@@ -378,14 +401,36 @@ class PeriodComparison:
                         
                         # Проверяем соответствие правилам агрегации
                         if self._check_manager_client_match(row, j, client_aggregation_mode):
-                            best_manager = j
-                            best_value = row[f'value_period_{j}']
+                            # Проверяем, что табельный номер не исключен (8XXYYYYY или 9XXYYYYY)
+                            tab_number = row[f'tab_number_period_{j}']
+                            if not self._is_excluded_tab_number(tab_number):
+                                best_manager = j
+                                best_value = row[f'value_period_{j}']
                 
                 if best_manager:
                     clients_base.loc[idx, 'final_tab_number'] = row[f'tab_number_period_{best_manager}']
                     clients_base.loc[idx, 'final_fio'] = row[f'fio_period_{best_manager}']
                     clients_base.loc[idx, 'final_tb'] = row[f'tb_period_{best_manager}']
                     clients_base.loc[idx, 'final_gosb'] = row[f'gosb_period_{best_manager}']
+                else:
+                    # Если не найден подходящий менеджер (все исключены), ищем любого менеджера
+                    fallback_manager = None
+                    fallback_value = 0
+                    
+                    for j in range(1, self.file_count + 1):
+                        if (row[f'tab_number_period_{j}'] != 0 and 
+                            row[f'value_period_{j}'] > fallback_value):
+                            
+                            # Проверяем соответствие правилам агрегации
+                            if self._check_manager_client_match(row, j, client_aggregation_mode):
+                                fallback_manager = j
+                                fallback_value = row[f'value_period_{j}']
+                    
+                    if fallback_manager:
+                        clients_base.loc[idx, 'final_tab_number'] = row[f'tab_number_period_{fallback_manager}']
+                        clients_base.loc[idx, 'final_fio'] = row[f'fio_period_{fallback_manager}']
+                        clients_base.loc[idx, 'final_tb'] = row[f'tb_period_{fallback_manager}']
+                        clients_base.loc[idx, 'final_gosb'] = row[f'gosb_period_{fallback_manager}']
         
         # Обработка серой зоны и прочих данных
         self._process_special_zones(clients_base)
