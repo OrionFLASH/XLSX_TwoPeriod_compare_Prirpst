@@ -315,10 +315,10 @@ class TestDataGenerator:
                 if i % 30 == 0:  # grey_zone
                     tab_number = "grey_zone"
                     manager_name = "Серая зона"  # Специальное имя для серой зоны
-                elif i % 30 == 10:  # пустое значение
-                    tab_number = ""
                 elif i % 30 == 20:  # дефис
                     tab_number = "-"
+                    manager_name = "-"  # Если табельный номер "-", имя менеджера тоже "-"
+                # Убрали генерацию пустых табельных номеров - каждый менеджер должен иметь табельный номер
                 
                 if i % 20 == 0:  # Некорректные показатели
                     if i % 40 == 0:  # пустое значение
@@ -326,12 +326,22 @@ class TestDataGenerator:
                     elif i % 40 == 20:  # дефис
                         value_to_use = "-"
             
+            # Определяем ТБ и ГОСБ в зависимости от наличия менеджера
+            if tab_number == "-":
+                # Если табельный номер "-", ТБ и ГОСБ тоже "-"
+                tb_value = "-"
+                gosb_value = "-"
+            else:
+                # Используем ТБ и ГОСБ менеджера
+                tb_value = manager['tb']
+                gosb_value = manager['gosb']
+            
             # Создание записи
             record = {
                 'Таб. номер': tab_number,
                 'КМ': manager_name,
-                'ТБ': manager['tb'],
-                'ГОСБ': manager['gosb'],
+                'ТБ': tb_value,
+                'ГОСБ': gosb_value,
                 'ИНН': client_id,
                 'Клиент': client['client_name'],
                 'ФОТ': value_to_use
