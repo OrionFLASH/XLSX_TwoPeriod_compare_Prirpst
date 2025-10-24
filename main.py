@@ -77,13 +77,14 @@ class PeriodComparison:
     def _validate_tab_number(self, value) -> int:
         """
         Валидация и очистка табельного номера
-        Заменяет нечисловые значения (gray_zone, -, и др.) на 90000000
+        Формат: 8 знаков с лидирующими нулями
+        Заменяет нечисловые значения на 70000000 (новые случаи) или 90000000 (серая зона)
         
         Args:
             value: Значение для валидации
             
         Returns:
-            int: Валидный табельный номер
+            int: Валидный табельный номер в формате 8 знаков
         """
         try:
             # Преобразуем в строку и очищаем от лишних символов (включая апострофы)
@@ -95,22 +96,28 @@ class PeriodComparison:
                 return 90000000
             
             if str_value in ['-', '', 'nan', 'None', 'null']:
-                logger.debug(f"Найдено пустое или некорректное значение в табельном номере, заменяем на 90000000")
-                return 90000000
+                logger.debug(f"Найдено пустое или некорректное значение в табельном номере, заменяем на 70000000")
+                return 70000000
             
             # Пытаемся преобразовать в число
             numeric_value = float(str_value)
             
             # Проверяем, что это целое число и положительное
             if numeric_value.is_integer() and numeric_value >= 0:
-                return int(numeric_value)
+                # Преобразуем в 8-значный формат с лидирующими нулями
+                tab_number = int(numeric_value)
+                # Проверяем, что номер не превышает 8 знаков
+                if tab_number > 99999999:
+                    logger.debug(f"Табельный номер {value} превышает 8 знаков, заменяем на 70000000")
+                    return 70000000
+                return tab_number
             else:
-                logger.debug(f"Табельный номер {value} не является положительным целым числом, заменяем на 90000000")
-                return 90000000
+                logger.debug(f"Табельный номер {value} не является положительным целым числом, заменяем на 70000000")
+                return 70000000
                 
         except (ValueError, TypeError):
-            logger.debug(f"Не удалось преобразовать табельный номер '{value}' в число, заменяем на 90000000")
-            return 90000000
+            logger.debug(f"Не удалось преобразовать табельный номер '{value}' в число, заменяем на 70000000")
+            return 70000000
     
     def _is_excluded_tab_number(self, tab_number: int) -> bool:
         """
@@ -230,7 +237,7 @@ class PeriodComparison:
                 
                 logger.debug(f"Валидация табельных номеров завершена: {df['tab_number'].nunique()} уникальных")
                 if original_invalid_tab > 0:
-                    logger.info(f"Заменено {original_invalid_tab} некорректных табельных номеров на 90000000")
+                    logger.info(f"Заменено {original_invalid_tab} некорректных табельных номеров на 70000000 и 90000000")
             
             # Валидация ID клиентов
             if 'client_id' in df.columns:
@@ -370,6 +377,11 @@ class PeriodComparison:
             clients_base[f'gosb_period_{i}'] = clients_base[f'gosb_period_{i}'].fillna('')
             clients_base[f'client_name_period_{i}'] = clients_base[f'client_name_period_{i}'].fillna('')
             
+            # Для табельного номера 70000000 устанавливаем "-" в ТБ и ГОСБ
+            mask_70000000 = clients_base[f'tab_number_period_{i}'] == 70000000
+            clients_base.loc[mask_70000000, f'tb_period_{i}'] = '-'
+            clients_base.loc[mask_70000000, f'gosb_period_{i}'] = '-'
+            
             # Для табельного номера 90000000 устанавливаем "-" в ТБ и ГОСБ
             mask_90000000 = clients_base[f'tab_number_period_{i}'] == 90000000
             clients_base.loc[mask_90000000, f'tb_period_{i}'] = '-'
@@ -434,6 +446,11 @@ class PeriodComparison:
         
         # Обработка серой зоны и прочих данных
         self._process_special_zones(clients_base)
+        
+        # Для итогового табельного номера 70000000 устанавливаем "-" в ТБ и ГОСБ
+        mask_final_70000000 = clients_base['final_tab_number'] == 70000000
+        clients_base.loc[mask_final_70000000, 'final_tb'] = '-'
+        clients_base.loc[mask_final_70000000, 'final_gosb'] = '-'
         
         # Для итогового табельного номера 90000000 устанавливаем "-" в ТБ и ГОСБ
         mask_final_90000000 = clients_base['final_tab_number'] == 90000000
