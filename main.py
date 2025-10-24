@@ -735,6 +735,14 @@ class PeriodComparison:
                         sheet_name=self.output_config['sheets']['managers_deal_date'],
                         index=False
                     )
+                
+                # Создание листа детализации клиентов
+                clients_detail = self._create_clients_detail_sheet(clients_base)
+                clients_detail.to_excel(
+                    writer,
+                    sheet_name='Детализация клиентов',
+                    index=False
+                )
             
             # Применение форматирования после записи всех данных
             self._apply_formatting_to_file(output_file)
@@ -746,6 +754,81 @@ class PeriodComparison:
             error_msg = f"Ошибка создания выходного файла: {str(e)}"
             logger.log_error(error_msg)
             raise Exception(error_msg)
+    
+    def _create_clients_detail_sheet(self, clients_base: pd.DataFrame) -> pd.DataFrame:
+        """
+        Создание листа детализации клиентов с данными из всех файлов
+        
+        Args:
+            clients_base (pd.DataFrame): База клиентов с приростами
+            
+        Returns:
+            pd.DataFrame: Данные для листа детализации
+        """
+        logger.debug("Создание листа детализации клиентов")
+        
+        # Создаем список колонок для детализации
+        detail_columns = [
+            'client_id',
+            'client_name_period_1',
+            'final_tb',
+            'final_gosb'
+        ]
+        
+        # Добавляем данные по каждому периоду
+        for i in range(1, self.file_count + 1):
+            detail_columns.extend([
+                f'tab_number_period_{i}',
+                f'fio_period_{i}',
+                f'tb_period_{i}',
+                f'gosb_period_{i}',
+                f'value_period_{i}'
+            ])
+        
+        # Добавляем итоговые данные
+        detail_columns.extend([
+            'final_tab_number',
+            'final_fio',
+            'growth'
+        ])
+        
+        # Создаем DataFrame с детализацией
+        clients_detail = clients_base[detail_columns].copy()
+        
+        # Переименовываем колонки для читаемости
+        column_mapping = {
+            'client_id': 'ID клиента',
+            'client_name_period_1': 'Наименование клиента',
+            'final_tb': 'Итоговый ТБ',
+            'final_gosb': 'Итоговый ГОСБ'
+        }
+        
+        # Добавляем переименования для периодов
+        for i in range(1, self.file_count + 1):
+            period_name = f"T-{i-1}" if i > 1 else "T-0"
+            column_mapping.update({
+                f'tab_number_period_{i}': f'Таб. номер ({period_name})',
+                f'fio_period_{i}': f'ФИО КМ ({period_name})',
+                f'tb_period_{i}': f'ТБ ({period_name})',
+                f'gosb_period_{i}': f'ГОСБ ({period_name})',
+                f'value_period_{i}': f'Показатель ({period_name})'
+            })
+        
+        # Добавляем переименования для итоговых данных
+        column_mapping.update({
+            'final_tab_number': 'Итоговый таб. номер',
+            'final_fio': 'Итоговое ФИО КМ',
+            'growth': 'Итоговый прирост'
+        })
+        
+        # Применяем переименования
+        clients_detail = clients_detail.rename(columns=column_mapping)
+        
+        # Сортируем по ID клиента для удобства
+        clients_detail = clients_detail.sort_values('ID клиента')
+        
+        logger.debug(f"Создан лист детализации с {len(clients_detail)} записями")
+        return clients_detail
     
     def _apply_formatting_to_file(self, file_path: str) -> None:
         """
@@ -783,6 +866,24 @@ class PeriodComparison:
                 managers_deal_date_sheet = wb[self.output_config['sheets']['managers_deal_date']]
                 self._format_sheet_columns(managers_deal_date_sheet, formatting_config['managers_deal_date'])
                 self._apply_autofilter_and_freeze(managers_deal_date_sheet)
+            
+            # Форматирование листа детализации клиентов
+            if 'Детализация клиентов' in wb.sheetnames:
+                clients_detail_sheet = wb['Детализация клиентов']
+                # Применяем базовое форматирование для листа детализации
+                self._apply_autofilter_and_freeze(clients_detail_sheet)
+                # Автоподбор ширины колонок
+                for column in clients_detail_sheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)  # Максимум 50 символов
+                    clients_detail_sheet.column_dimensions[column_letter].width = adjusted_width
             
             # Сохранение файла с форматированием
             wb.save(file_path)
