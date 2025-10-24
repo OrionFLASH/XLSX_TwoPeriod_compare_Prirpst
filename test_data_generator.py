@@ -364,21 +364,27 @@ class TestDataGenerator:
         
         try:
             # Создание файлов для каждого периода
-            for period in range(1, 4):  # 3 периода
+            # Количество периодов зависит от файлов с use_file=True
+            from config import ANALYSIS_CONFIG
+            used_files = [file_config for file_config in ANALYSIS_CONFIG['files'] if file_config.get('use_file', True)]
+            periods_count = len(used_files)
+            
+            for period in range(1, periods_count + 1):
                 # Генерация данных
                 df = self.generate_period_data(period)
                 
                 # Создание имени файла в каталоге IN_XLSX
-                # Используем тестовые имена файлов из конфигурации
-                from config import TEST_DATA_CONFIG
-                test_files = TEST_DATA_CONFIG['test_files']
-                
-                if period == 1:
-                    filename = IN_XLSX_DIR / test_files[0]  # test_period1.xlsx
-                elif period == 2:
-                    filename = IN_XLSX_DIR / test_files[1]  # test_period2.xlsx
+                # Генерируем имя на основе обычных файлов с префиксом "test_"
+                if period <= len(used_files):
+                    # Берем имя файла из конфигурации и добавляем префикс "test_"
+                    import os
+                    original_path = used_files[period - 1]['path']
+                    original_filename = os.path.basename(original_path)
+                    test_filename = f"test_{original_filename}"
+                    filename = IN_XLSX_DIR / test_filename
                 else:
-                    filename = IN_XLSX_DIR / test_files[2]  # test_period3.xlsx
+                    # Если периодов больше, чем файлов в конфигурации, создаем имя по умолчанию
+                    filename = IN_XLSX_DIR / f"test_data_period{period}.xlsx"
                 
                 # Сохранение в Excel файл
                 with pd.ExcelWriter(filename, engine='openpyxl') as writer:
@@ -388,9 +394,15 @@ class TestDataGenerator:
             
             logger.info("Тестовые данные созданы")
             print("Тестовые файлы созданы успешно:")
-            print("- test_data_period1.xlsx")
-            print("- test_data_period2.xlsx") 
-            print("- test_data_period3.xlsx")
+            for period in range(1, periods_count + 1):
+                if period <= len(used_files):
+                    import os
+                    original_path = used_files[period - 1]['path']
+                    original_filename = os.path.basename(original_path)
+                    test_filename = f"test_{original_filename}"
+                    print(f"- {test_filename}")
+                else:
+                    print(f"- test_data_period{period}.xlsx")
             return True
             
         except Exception as e:

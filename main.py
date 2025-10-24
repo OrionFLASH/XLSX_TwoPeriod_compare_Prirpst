@@ -48,25 +48,47 @@ class PeriodComparison:
             list: Список файлов для обработки
         """
         if self.program_mode in [2, 4]:  # Режимы работы с тестовыми данными
-            # Используем тестовые файлы
-            from config import TEST_DATA_CONFIG
-            test_files = TEST_DATA_CONFIG['test_files']
+            # Используем тестовые файлы, генерируем имена на основе обычных файлов
+            from config import ANALYSIS_CONFIG
+            used_files = [file_config for file_config in ANALYSIS_CONFIG['files'] if file_config.get('use_file', True)]
             files_to_use = []
             
             for i in range(self.file_count):
-                file_config = {
-                    'path': str(IN_XLSX_DIR / test_files[i]),
-                    'sheet_name': 'Sheet1',
-                    'columns': {
-                        'Таб. номер': 'tab_number',
-                        'КМ': 'fio',
-                        'ТБ': 'tb',
-                        'ГОСБ': 'gosb',
-                        'ИНН': 'client_id',
-                        'Клиент': 'client_name',
-                        'ФОТ': 'value'
+                if i < len(used_files):
+                    # Генерируем имя тестового файла на основе обычного файла
+                    import os
+                    original_path = used_files[i]['path']
+                    original_filename = os.path.basename(original_path)
+                    test_filename = f"test_{original_filename}"
+                    
+                    file_config = {
+                        'path': str(IN_XLSX_DIR / test_filename),
+                        'sheet_name': 'Sheet1',
+                        'columns': {
+                            'Таб. номер': 'tab_number',
+                            'КМ': 'fio',
+                            'ТБ': 'tb',
+                            'ГОСБ': 'gosb',
+                            'ИНН': 'client_id',
+                            'Клиент': 'client_name',
+                            'ФОТ': 'value'
+                        }
                     }
-                }
+                else:
+                    # Если файлов больше, чем в конфигурации, используем имя по умолчанию
+                    file_config = {
+                        'path': str(IN_XLSX_DIR / f'test_data_period{i+1}.xlsx'),
+                        'sheet_name': 'Sheet1',
+                        'columns': {
+                            'Таб. номер': 'tab_number',
+                            'КМ': 'fio',
+                            'ТБ': 'tb',
+                            'ГОСБ': 'gosb',
+                            'ИНН': 'client_id',
+                            'Клиент': 'client_name',
+                            'ФОТ': 'value'
+                        }
+                    }
                 files_to_use.append(file_config)
             
             return files_to_use
@@ -1543,11 +1565,19 @@ def check_and_create_test_data():
     
     # Удаление старых тестовых файлов
     import os
-    test_files = [
-        IN_XLSX_DIR / 'test_data_period1.xlsx',
-        IN_XLSX_DIR / 'test_data_period2.xlsx', 
-        IN_XLSX_DIR / 'test_data_period3.xlsx'
-    ]
+    from config import ANALYSIS_CONFIG
+    
+    # Получаем список файлов, которые используются (use_file=True)
+    used_files = [file_config for file_config in ANALYSIS_CONFIG['files'] if file_config.get('use_file', True)]
+    
+    # Создаем список тестовых файлов на основе обычных файлов с префиксом "test_"
+    test_files = []
+    for file_config in used_files:
+        import os
+        original_path = file_config['path']
+        original_filename = os.path.basename(original_path)
+        test_filename = f"test_{original_filename}"
+        test_files.append(IN_XLSX_DIR / test_filename)
     
     deleted_files = []
     for file_path in test_files:

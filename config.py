@@ -240,12 +240,6 @@ TEST_DATA_CONFIG = {
     'value_increase_range': (0.01, 0.15),  # Диапазон увеличения (1-15%)
     'value_decrease_range': (0.01, 0.05),  # Диапазон уменьшения (1-5%)
     
-    # Названия тестовых файлов
-    'test_files': [
-        'test_data_period1.xlsx',
-        'test_data_period2.xlsx', 
-        'test_data_period3.xlsx'
-    ],
     
     # Параметры генерации ФИО менеджеров
     'manager_names': {
